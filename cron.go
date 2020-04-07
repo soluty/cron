@@ -170,11 +170,12 @@ func (c *Cron) Stop() context.Context {
 }
 
 // Run the cron scheduler, or no-op if already running.
-func (c *Cron) Run() {
+func (c *Cron) Run() bool {
 	if !atomic.CompareAndSwapInt32(&c.running, 0, 1) {
-		return
+		return false
 	}
 	c.run()
+	return true
 }
 
 func (c *Cron) runWithRecovery(j Job) {

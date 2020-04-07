@@ -375,6 +375,16 @@ func TestBlockingRun(t *testing.T) {
 	}
 }
 
+// Test that double-running Run is a no-op
+func TestBlockingRunNoop(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	cron := New(clock)
+	go cron.Run()
+	defer cron.Stop()
+	time.Sleep(time.Millisecond)
+	assert.False(t, cron.Run())
+}
+
 // Test that double-running is a no-op
 func TestStartNoop(t *testing.T) {
 	clock := clockwork.NewRealClock()

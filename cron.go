@@ -1,6 +1,7 @@
 package cron
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"runtime"
@@ -18,7 +19,8 @@ type Cron struct {
 	clock     clockwork.Clock
 	nextID    EntryID
 	entries   []*Entry
-	stop      chan struct{}
+	ctx       context.Context
+	cancel    context.CancelFunc
 	update    chan struct{}
 	add       chan *Entry
 	running   bool
@@ -87,11 +89,13 @@ func New(clock clockwork.Clock) *Cron {
 
 // NewWithLocation returns a new Cron job runner.
 func NewWithLocation(clock clockwork.Clock, location *time.Location) *Cron {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Cron{
 		clock:     clock,
 		entries:   nil,
 		add:       make(chan *Entry),
-		stop:      make(chan struct{}),
+		ctx:       ctx,
+		cancel:    cancel,
 		update:    make(chan struct{}),
 		running:   false,
 		runningMu: sync.Mutex{},
@@ -246,7 +250,7 @@ func (c *Cron) run() {
 				}
 			case <-c.update:
 				timer.Stop()
-			case <-c.stop:
+			case <-c.ctx.Done():
 				timer.Stop()
 				return
 			}
@@ -271,7 +275,7 @@ func (c *Cron) Stop() {
 	if !c.running {
 		return
 	}
-	c.stop <- struct{}{}
+	c.cancel()
 	c.running = false
 }
 

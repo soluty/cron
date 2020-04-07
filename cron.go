@@ -64,24 +64,41 @@ type Entry struct {
 	Job Job
 }
 
-// New returns a new Cron job runner, in the Local time zone.
-func New(clock clockwork.Clock) *Cron {
-	return NewWithLocation(clock, clock.Location())
+// Option represents a modification to the default behavior of a Cron.
+type Option func(*Cron)
+
+// WithLocation overrides the timezone of the cron instance.
+func WithLocation(loc *time.Location) Option {
+	return func(c *Cron) {
+		c.location = loc
+	}
 }
 
-// NewWithLocation returns a new Cron job runner.
-func NewWithLocation(clock clockwork.Clock, location *time.Location) *Cron {
+// WithLocation ...
+func WithClock(clock clockwork.Clock) Option {
+	return func(c *Cron) {
+		c.clock = clock
+	}
+}
+
+// New returns a new Cron job runner, in the Local time zone.
+func New(opts ...Option) *Cron {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Cron{
+	clock := clockwork.NewRealClock()
+	c := &Cron{
 		clock:    clock,
 		entries:  nil,
 		ctx:      ctx,
 		cancel:   cancel,
 		update:   make(chan struct{}),
 		ErrorLog: nil,
-		location: location,
+		location: clock.Location(),
 		PanicCh:  make(chan string, 10),
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 func (c *Cron) isRunning() bool {

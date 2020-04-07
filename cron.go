@@ -20,6 +20,7 @@ type Cron struct {
 	clock     clockwork.Clock
 	nextID    EntryID
 	entries   []*Entry
+	entriesMu sync.RWMutex
 	ctx       context.Context
 	cancel    context.CancelFunc
 	update    chan struct{}
@@ -121,7 +122,7 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
 		Job:      cmd,
 	}
 	entry.Next = entry.Schedule.Next(c.now())
-	c.entries = append(c.entries, entry)
+	c.appendEntry(entry)
 	if c.isRunning() {
 		c.update <- struct{}{}
 	}
@@ -207,33 +208,14 @@ func (c *Cron) runWithRecovery(j Job) {
 // access to the 'running' state variable.
 func (c *Cron) run() {
 	// Figure out the next activation times for each entry.
-	now := c.now()
-	for _, entry := range c.entries {
-		entry.Next = entry.Schedule.Next(now)
-	}
-
+	c.setEntriesNext()
 	for {
 		// Determine the next entry to run.
 		c.sortEntries()
-		var delay time.Duration
-		if len(c.entries) == 0 || c.entries[0].Next.IsZero() {
-			delay = 100000 * time.Hour // If there are no entries yet, just sleep - it still handles new entries and stop requests.
-		} else {
-			delay = c.entries[0].Next.Sub(c.now())
-		}
-
+		delay := c.getNextDelay()
 		select {
 		case <-c.clock.After(delay):
-			now = c.now()
-			// Run every entry whose next time was less than now
-			for _, e := range c.entries {
-				if e.Next.After(now) || e.Next.IsZero() {
-					break
-				}
-				c.startJob(e.Job)
-				e.Prev = e.Next
-				e.Next = e.Schedule.Next(now)
-			}
+			c.runDueEntries()
 		case <-c.update:
 		case <-c.ctx.Done():
 			return
@@ -242,6 +224,8 @@ func (c *Cron) run() {
 }
 
 func (c *Cron) sortEntries() {
+	c.entriesMu.Lock()
+	defer c.entriesMu.Unlock()
 	sort.Slice(c.entries, func(i, j int) bool {
 		if c.entries[i].Next.IsZero() {
 			return false
@@ -251,6 +235,65 @@ func (c *Cron) sortEntries() {
 		}
 		return c.entries[i].Next.Before(c.entries[j].Next)
 	})
+}
+
+// entrySnapshot returns a copy of the current cron entry list.
+func (c *Cron) entrySnapshot() []Entry {
+	c.entriesMu.RLock()
+	defer c.entriesMu.RUnlock()
+	var entries = make([]Entry, len(c.entries))
+	for i, e := range c.entries {
+		entries[i] = *e
+	}
+	return entries
+}
+
+// Run every entry whose next time was less than now
+func (c *Cron) runDueEntries() {
+	c.entriesMu.Lock()
+	defer c.entriesMu.Unlock()
+	now := c.now()
+	for _, e := range c.entries {
+		if e.Next.After(now) || e.Next.IsZero() {
+			break
+		}
+		c.startJob(e.Job)
+		e.Prev = e.Next
+		e.Next = e.Schedule.Next(now)
+	}
+}
+
+func (c *Cron) getNextDelay() (delay time.Duration) {
+	c.entriesMu.RLock()
+	defer c.entriesMu.RUnlock()
+	if len(c.entries) == 0 || c.entries[0].Next.IsZero() {
+		delay = 100000 * time.Hour // If there are no entries yet, just sleep - it still handles new entries and stop requests.
+	} else {
+		delay = c.entries[0].Next.Sub(c.now())
+	}
+	return
+}
+
+func (c *Cron) setEntriesNext() {
+	c.entriesMu.Lock()
+	defer c.entriesMu.Unlock()
+	now := c.now()
+	for _, entry := range c.entries {
+		entry.Next = entry.Schedule.Next(now)
+	}
+}
+
+func (c *Cron) appendEntry(entry *Entry) {
+	c.entries = append(c.entries, entry)
+}
+
+func (c *Cron) removeEntry(id EntryID) {
+	for i := len(c.entries) - 1; i >= 0; i-- {
+		if c.entries[i].ID != id {
+			c.entries = append(c.entries[:i], c.entries[i+1:]...) // remove entry
+			break
+		}
+	}
 }
 
 // startJob runs the given job in a new goroutine.
@@ -271,25 +314,7 @@ func (c *Cron) logf(format string, args ...interface{}) {
 	}
 }
 
-// entrySnapshot returns a copy of the current cron entry list.
-func (c *Cron) entrySnapshot() []Entry {
-	var entries = make([]Entry, len(c.entries))
-	for i, e := range c.entries {
-		entries[i] = *e
-	}
-	return entries
-}
-
 // now returns current time in c location
 func (c *Cron) now() time.Time {
 	return c.clock.Now().In(c.Location())
-}
-
-func (c *Cron) removeEntry(id EntryID) {
-	for i := len(c.entries) - 1; i >= 0; i-- {
-		if c.entries[i].ID != id {
-			c.entries = append(c.entries[:i], c.entries[i+1:]...) // remove entry
-			break
-		}
-	}
 }

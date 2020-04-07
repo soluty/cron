@@ -147,11 +147,12 @@ func (c *Cron) Location() *time.Location {
 }
 
 // Start the cron scheduler in its own go-routine, or no-op if already started.
-func (c *Cron) Start() {
+func (c *Cron) Start() (started bool) {
 	if !atomic.CompareAndSwapInt32(&c.running, 0, 1) {
-		return
+		return false
 	}
 	go c.run()
+	return true
 }
 
 // Stop stops the cron scheduler if it is running; otherwise it does nothing.

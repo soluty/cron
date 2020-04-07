@@ -375,33 +375,16 @@ func TestBlockingRun(t *testing.T) {
 	}
 }
 
-//// Test that double-running is a no-op
-//func TestStartNoop(t *testing.T) {
-//	var tickChan = make(chan struct{}, 2)
-//
-//	clock := clockwork.NewRealClock()
-//	cron := New(clock)
-//	_, _ = cron.AddFunc("* * * * * ?", func() {
-//		tickChan <- struct{}{}
-//	})
-//
-//	cron.Start()
-//	defer cron.Stop()
-//
-//	// Wait for the first firing to ensure the runner is going
-//	<-tickChan
-//
-//	cron.Start()
-//
-//	<-tickChan
-//
-//	// Fail if this job fires again in a short period, indicating a double-run
-//	select {
-//	case <-time.After(time.Millisecond):
-//	case <-tickChan:
-//		t.Error("expected job fires exactly twice")
-//	}
-//}
+// Test that double-running is a no-op
+func TestStartNoop(t *testing.T) {
+	clock := clockwork.NewRealClock()
+	cron := New(clock)
+	started := cron.Start()
+	defer cron.Stop()
+	assert.True(t, started)
+	started = cron.Start()
+	assert.False(t, started)
+}
 
 // Simple test using Runnables.
 func TestJob(t *testing.T) {

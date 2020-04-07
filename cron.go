@@ -183,6 +183,17 @@ func (c *Cron) Start() {
 	go c.run()
 }
 
+// Stop stops the cron scheduler if it is running; otherwise it does nothing.
+func (c *Cron) Stop() {
+	c.runningMu.Lock()
+	defer c.runningMu.Unlock()
+	if !c.running {
+		return
+	}
+	c.cancel()
+	c.running = false
+}
+
 // Run the cron scheduler, or no-op if already running.
 func (c *Cron) Run() {
 	c.runningMu.Lock()
@@ -264,17 +275,6 @@ func (c *Cron) logf(format string, args ...interface{}) {
 	} else {
 		log.Printf(format, args...)
 	}
-}
-
-// Stop stops the cron scheduler if it is running; otherwise it does nothing.
-func (c *Cron) Stop() {
-	c.runningMu.Lock()
-	defer c.runningMu.Unlock()
-	if !c.running {
-		return
-	}
-	c.cancel()
-	c.running = false
 }
 
 // entrySnapshot returns a copy of the current cron entry list.

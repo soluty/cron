@@ -280,15 +280,13 @@ func (c *Cron) runDueEntries() {
 	}
 }
 
-func (c *Cron) getNextDelay() (delay time.Duration) {
+func (c *Cron) getNextDelay() time.Duration {
 	c.entriesMu.RLock()
 	defer c.entriesMu.RUnlock()
 	if len(c.entries) == 0 || c.entries[0].Next.IsZero() {
-		delay = 100000 * time.Hour // If there are no entries yet, just sleep - it still handles new entries and stop requests.
-	} else {
-		delay = c.entries[0].Next.Sub(c.now())
+		return 100000 * time.Hour // If there are no entries yet, just sleep - it still handles new entries and stop requests.
 	}
-	return
+	return c.entries[0].Next.Sub(c.now())
 }
 
 func (c *Cron) setEntriesNext() {

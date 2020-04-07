@@ -15,17 +15,17 @@ import (
 // specified by the schedule. It may be started, stopped, and the entries may
 // be inspected while running.
 type Cron struct {
-	clock    clockwork.Clock
-	remove   chan EntryID
-	nextID   EntryID
-	entries  []*Entry
-	stop     chan struct{}
-	add      chan *Entry
-	running  bool
+	clock     clockwork.Clock
+	nextID    EntryID
+	entries   []*Entry
+	stop      chan struct{}
+	update    chan struct{}
+	add       chan *Entry
+	running   bool
 	runningMu sync.Mutex
-	ErrorLog *log.Logger
-	location *time.Location
-	PanicCh  chan string
+	ErrorLog  *log.Logger
+	location  *time.Location
+	PanicCh   chan string
 }
 
 type EntryID int
@@ -88,16 +88,16 @@ func New(clock clockwork.Clock) *Cron {
 // NewWithLocation returns a new Cron job runner.
 func NewWithLocation(clock clockwork.Clock, location *time.Location) *Cron {
 	return &Cron{
-		clock:    clock,
-		entries:  nil,
-		add:      make(chan *Entry),
-		stop:     make(chan struct{}),
-		remove:   make(chan EntryID),
-		running:  false,
+		clock:     clock,
+		entries:   nil,
+		add:       make(chan *Entry),
+		stop:      make(chan struct{}),
+		remove:    make(chan EntryID),
+		running:   false,
 		runningMu: sync.Mutex{},
-		ErrorLog: nil,
-		location: location,
-		PanicCh:  make(chan string, 10),
+		ErrorLog:  nil,
+		location:  location,
+		PanicCh:   make(chan string, 10),
 	}
 }
 
@@ -160,10 +160,9 @@ func (c *Cron) Entry(id EntryID) Entry {
 func (c *Cron) Remove(id EntryID) {
 	c.runningMu.Lock()
 	defer c.runningMu.Unlock()
+	c.removeEntry(id)
 	if c.running {
-		c.remove <- id
-	} else {
-		c.removeEntry(id)
+		c.update <- struct{}{}
 	}
 }
 
@@ -245,21 +244,16 @@ func (c *Cron) run() {
 					e.Prev = e.Next
 					e.Next = e.Schedule.Next(now)
 				}
-
 			case newEntry := <-c.add:
 				timer.Stop()
 				now = c.now()
 				newEntry.Next = newEntry.Schedule.Next(now)
 				c.entries = append(c.entries, newEntry)
-
-			case id := <-c.remove:
-				c.removeEntry(id)
-
+			case <-c.update:
 			case <-c.stop:
 				timer.Stop()
 				return
 			}
-
 			break
 		}
 	}

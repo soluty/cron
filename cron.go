@@ -250,24 +250,21 @@ func (c *Cron) run() {
 			delay = c.entries[0].Next.Sub(now)
 		}
 
-		for {
-			select {
-			case <-time.After(delay):
-				now = c.now()
-				// Run every entry whose next time was less than now
-				for _, e := range c.entries {
-					if e.Next.After(now) || e.Next.IsZero() {
-						break
-					}
-					c.startJob(e.Job)
-					e.Prev = e.Next
-					e.Next = e.Schedule.Next(now)
+		select {
+		case <-time.After(delay):
+			now = c.now()
+			// Run every entry whose next time was less than now
+			for _, e := range c.entries {
+				if e.Next.After(now) || e.Next.IsZero() {
+					break
 				}
-			case <-c.update:
-			case <-c.ctx.Done():
-				return
+				c.startJob(e.Job)
+				e.Prev = e.Next
+				e.Next = e.Schedule.Next(now)
 			}
-			break
+		case <-c.update:
+		case <-c.ctx.Done():
+			return
 		}
 	}
 }

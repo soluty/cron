@@ -280,7 +280,7 @@ func (c *Cron) startJob(j Job) {
 	c.jobWaiter.Add(1)
 	go func() {
 		defer c.jobWaiter.Done()
-		j.Run()
+		c.runWithRecovery(j)
 	}()
 }
 

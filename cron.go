@@ -22,7 +22,6 @@ type Cron struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	update    chan struct{}
-	add       chan *Entry
 	running   bool
 	runningMu sync.Mutex
 	ErrorLog  *log.Logger
@@ -93,7 +92,6 @@ func NewWithLocation(clock clockwork.Clock, location *time.Location) *Cron {
 	return &Cron{
 		clock:     clock,
 		entries:   nil,
-		add:       make(chan *Entry),
 		ctx:       ctx,
 		cancel:    cancel,
 		update:    make(chan struct{}),

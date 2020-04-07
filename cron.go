@@ -83,6 +83,16 @@ func NewWithLocation(clock clockwork.Clock, location *time.Location) *Cron {
 	}
 }
 
+func (c *Cron) isRunning() bool {
+	return atomic.LoadInt32(&c.running) == 1
+}
+func (c *Cron) startRunning() bool {
+	return atomic.CompareAndSwapInt32(&c.running, 0, 1)
+}
+func (c *Cron) stopRunning() bool {
+	return atomic.CompareAndSwapInt32(&c.running, 1, 0)
+}
+
 // A wrapper that turns a func() into a cron.Job
 type FuncJob func()
 
@@ -112,7 +122,7 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
 	}
 	entry.Next = entry.Schedule.Next(c.now())
 	c.entries = append(c.entries, entry)
-	if atomic.LoadInt32(&c.running) == 1 {
+	if c.isRunning() {
 		c.update <- struct{}{}
 	}
 	return entry.ID
@@ -136,7 +146,7 @@ func (c *Cron) Entry(id EntryID) Entry {
 // Remove an entry from being run in the future.
 func (c *Cron) Remove(id EntryID) {
 	c.removeEntry(id)
-	if atomic.LoadInt32(&c.running) == 1 {
+	if c.isRunning() {
 		c.update <- struct{}{}
 	}
 }
@@ -148,7 +158,7 @@ func (c *Cron) Location() *time.Location {
 
 // Start the cron scheduler in its own go-routine, or no-op if already started.
 func (c *Cron) Start() (started bool) {
-	if !atomic.CompareAndSwapInt32(&c.running, 0, 1) {
+	if !c.startRunning() {
 		return false
 	}
 	go c.run()
@@ -158,7 +168,7 @@ func (c *Cron) Start() (started bool) {
 // Stop stops the cron scheduler if it is running; otherwise it does nothing.
 // A context is returned so the caller can wait for running jobs to complete.
 func (c *Cron) Stop() context.Context {
-	if atomic.CompareAndSwapInt32(&c.running, 1, 0) {
+	if c.stopRunning() {
 		c.cancel()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -171,7 +181,7 @@ func (c *Cron) Stop() context.Context {
 
 // Run the cron scheduler, or no-op if already running.
 func (c *Cron) Run() bool {
-	if !atomic.CompareAndSwapInt32(&c.running, 0, 1) {
+	if !c.startRunning() {
 		return false
 	}
 	c.run()

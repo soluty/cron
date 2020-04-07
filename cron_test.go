@@ -79,7 +79,7 @@ func TestNoEntries(t *testing.T) {
 	select {
 	case <-time.After(OneSecond):
 		t.Fatal("expected cron will be stopped immediately")
-	case <-stop(cron):
+	case <-cron.Stop().Done():
 	}
 }
 
@@ -444,15 +444,6 @@ func wait(wg *sync.WaitGroup) chan bool {
 	ch := make(chan bool)
 	go func() {
 		wg.Wait()
-		ch <- true
-	}()
-	return ch
-}
-
-func stop(cron *Cron) chan bool {
-	ch := make(chan bool)
-	go func() {
-		cron.Stop()
 		ch <- true
 	}()
 	return ch

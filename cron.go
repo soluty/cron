@@ -92,7 +92,7 @@ func NewWithLocation(clock clockwork.Clock, location *time.Location) *Cron {
 		entries:   nil,
 		add:       make(chan *Entry),
 		stop:      make(chan struct{}),
-		remove:    make(chan EntryID),
+		update:    make(chan struct{}),
 		running:   false,
 		runningMu: sync.Mutex{},
 		ErrorLog:  nil,
@@ -130,12 +130,11 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
 		Schedule: schedule,
 		Job:      cmd,
 	}
-	if !c.running {
-		c.entries = append(c.entries, entry)
-	} else {
-		c.add <- entry
+	entry.Next = entry.Schedule.Next(c.now())
+	c.entries = append(c.entries, entry)
+	if c.running {
+		c.update <- struct{}{}
 	}
-
 	return entry.ID
 }
 
@@ -222,14 +221,15 @@ func (c *Cron) run() {
 		// Determine the next entry to run.
 		sort.Sort(byTime(c.entries))
 
-		var timer clockwork.Timer
+		var delay time.Duration
 		if len(c.entries) == 0 || c.entries[0].Next.IsZero() {
 			// If there are no entries yet, just sleep - it still handles new entries
 			// and stop requests.
-			timer = c.clock.NewTimer(100000 * time.Hour)
+			delay = 100000 * time.Hour
 		} else {
-			timer = c.clock.NewTimer(c.entries[0].Next.Sub(now))
+			delay = c.entries[0].Next.Sub(now)
 		}
+		timer := c.clock.NewTimer(delay)
 
 		for {
 			select {
@@ -244,12 +244,8 @@ func (c *Cron) run() {
 					e.Prev = e.Next
 					e.Next = e.Schedule.Next(now)
 				}
-			case newEntry := <-c.add:
-				timer.Stop()
-				now = c.now()
-				newEntry.Next = newEntry.Schedule.Next(now)
-				c.entries = append(c.entries, newEntry)
 			case <-c.update:
+				timer.Stop()
 			case <-c.stop:
 				timer.Stop()
 				return

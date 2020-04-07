@@ -249,12 +249,11 @@ func (c *Cron) run() {
 		} else {
 			delay = c.entries[0].Next.Sub(now)
 		}
-		timer := c.clock.NewTimer(delay)
 
 		for {
 			select {
-			case now = <-timer.C():
-				now = now.In(c.location)
+			case <-time.After(delay):
+				now = c.now()
 				// Run every entry whose next time was less than now
 				for _, e := range c.entries {
 					if e.Next.After(now) || e.Next.IsZero() {
@@ -265,9 +264,7 @@ func (c *Cron) run() {
 					e.Next = e.Schedule.Next(now)
 				}
 			case <-c.update:
-				timer.Stop()
 			case <-c.ctx.Done():
-				timer.Stop()
 				return
 			}
 			break

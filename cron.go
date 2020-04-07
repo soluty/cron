@@ -216,7 +216,7 @@ func (c *Cron) run() {
 		if len(c.entries) == 0 || c.entries[0].Next.IsZero() {
 			delay = 100000 * time.Hour // If there are no entries yet, just sleep - it still handles new entries and stop requests.
 		} else {
-			delay = c.entries[0].Next.Sub(now)
+			delay = c.entries[0].Next.Sub(c.now())
 		}
 
 		select {

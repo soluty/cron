@@ -169,11 +169,6 @@ func (c *Cron) Remove(id EntryID) {
 	}
 }
 
-// Location gets the time zone location
-func (c *Cron) Location() *time.Location {
-	return c.location
-}
-
 // Start the cron scheduler in its own go-routine, or no-op if already started.
 func (c *Cron) Start() (started bool) {
 	if !c.startRunning() {
@@ -331,6 +326,11 @@ func (c *Cron) logf(format string, args ...interface{}) {
 	} else {
 		log.Printf(format, args...)
 	}
+}
+
+// Location gets the time zone location
+func (c *Cron) Location() *time.Location {
+	return c.location
 }
 
 // now returns current time in c location

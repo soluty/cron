@@ -23,7 +23,7 @@ func TestFuncPanicRecovery(t *testing.T) {
 	nbCall := 0
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
-	cron.AddFunc("* * * * *", func() {
+	_, _ = cron.AddFunc("* * * * *", func() {
 		nbCall++
 		wg.Done()
 	})
@@ -40,7 +40,7 @@ func TestFuncPanicRecovery1(t *testing.T) {
 	nbCall := 0
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
-	cron.AddFunc("* * * * * *", func() {
+	_, _ = cron.AddFunc("* * * * * *", func() {
 		nbCall++
 		wg.Done()
 	})
@@ -62,7 +62,7 @@ func TestJobPanicRecovery(t *testing.T) {
 	cron := New(clock)
 	cron.Start()
 	defer cron.Stop()
-	cron.AddJob("* * * * * ?", job)
+	_, _ = cron.AddJob("* * * * * ?", job)
 	cycle(cron)
 	clock.Advance(time.Second)
 	cycle(cron)
@@ -93,7 +93,7 @@ func TestStopCausesJobsToNotRun(t *testing.T) {
 	cron := New(clock)
 	cron.Start()
 	cron.Stop()
-	cron.AddFunc("* * * * * ?", func() { wg.Done() })
+	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
 
 	select {
 	case <-time.After(OneSecond):
@@ -110,7 +110,7 @@ func TestAddBeforeRunning(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	cron := New(clock)
-	cron.AddFunc("* * * * * ?", func() { wg.Done() })
+	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
@@ -133,7 +133,7 @@ func TestAddWhileRunning(t *testing.T) {
 	cron := New(clock)
 	cron.Start()
 	defer cron.Stop()
-	cron.AddFunc("* * * * * ?", func() { wg.Done() })
+	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
 	clock.Advance(time.Second)
 	cycle(cron)
 
@@ -161,7 +161,7 @@ func TestAddWhileRunningWithDelay(t *testing.T) {
 	clock.Advance(time.Second)
 	cycle(cron)
 	var calls = 0
-	cron.AddFunc("* * * * * *", func() { calls += 1 })
+	_, _ = cron.AddFunc("* * * * * *", func() { calls += 1 })
 	clock.Advance(time.Second)
 	cycle(cron)
 	if calls != 1 {
@@ -176,7 +176,7 @@ func TestSnapshotEntries(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	cron := New(clock)
-	cron.AddFunc("@every 2s", func() { wg.Done() })
+	_, _ = cron.AddFunc("@every 2s", func() { wg.Done() })
 	cron.Start()
 	defer cron.Stop()
 	clock.Advance(time.Second)
@@ -201,10 +201,10 @@ func TestMultipleEntries(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	cron := New(clock)
-	cron.AddFunc("0 0 0 1 1 ?", func() {})
-	cron.AddFunc("* * * * * ?", func() { wg.Done() })
-	cron.AddFunc("0 0 0 31 12 ?", func() {})
-	cron.AddFunc("* * * * * ?", func() { wg.Done() })
+	_, _ = cron.AddFunc("0 0 0 1 1 ?", func() {})
+	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
+	_, _ = cron.AddFunc("0 0 0 31 12 ?", func() {})
+	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
 
 	cron.Start()
 	defer cron.Stop()
@@ -221,9 +221,9 @@ func TestRunningJobTwice(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	cron := New(clock)
-	cron.AddFunc("0 0 0 1 1 ?", func() {})
-	cron.AddFunc("0 0 0 31 12 ?", func() {})
-	cron.AddFunc("* * * * * ?", func() { wg.Done() })
+	_, _ = cron.AddFunc("0 0 0 1 1 ?", func() {})
+	_, _ = cron.AddFunc("0 0 0 31 12 ?", func() {})
+	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
 
 	cron.Start()
 	defer cron.Stop()
@@ -246,9 +246,9 @@ func TestRunningMultipleSchedules(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	cron := New(clock)
-	cron.AddFunc("0 0 0 1 1 ?", func() {})
-	cron.AddFunc("0 0 0 31 12 ?", func() {})
-	cron.AddFunc("* * * * * ?", func() { wg.Done() })
+	_, _ = cron.AddFunc("0 0 0 1 1 ?", func() {})
+	_, _ = cron.AddFunc("0 0 0 31 12 ?", func() {})
+	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
 	cron.Schedule(Every(time.Minute), FuncJob(func() {}))
 	cron.Schedule(Every(time.Second), FuncJob(func() { wg.Done() }))
 	cron.Schedule(Every(time.Hour), FuncJob(func() {}))
@@ -276,7 +276,7 @@ func TestLocalTimezone(t *testing.T) {
 		now.Second()+1, now.Second()+2, now.Minute(), now.Hour(), now.Day(), now.Month())
 
 	cron := New(clock)
-	cron.AddFunc(spec, func() { wg.Done() })
+	_, _ = cron.AddFunc(spec, func() { wg.Done() })
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
@@ -309,7 +309,7 @@ func TestNonLocalTimezone(t *testing.T) {
 		now.Second()+1, now.Second()+2, now.Minute(), now.Hour(), now.Day(), now.Month())
 
 	cron := NewWithLocation(clock, loc)
-	cron.AddFunc(spec, func() { wg.Done() })
+	_, _ = cron.AddFunc(spec, func() { wg.Done() })
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
@@ -359,7 +359,7 @@ func TestBlockingRun(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	cron := New(clock)
-	cron.AddFunc("* * * * * ?", func() { wg.Done() })
+	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
 
 	var unblockChan = make(chan struct{})
 
@@ -386,7 +386,7 @@ func TestStartNoop(t *testing.T) {
 
 	clock := clockwork.NewRealClock()
 	cron := New(clock)
-	cron.AddFunc("* * * * * ?", func() {
+	_, _ = cron.AddFunc("* * * * * ?", func() {
 		tickChan <- struct{}{}
 	})
 
@@ -415,10 +415,10 @@ func TestJob(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	cron := New(clock)
-	cron.AddJob("0 0 0 30 Feb ?", testJob{wg, "job0"})
-	cron.AddJob("0 0 0 1 1 ?", testJob{wg, "job1"})
-	cron.AddJob("* * * * * ?", testJob{wg, "job2"})
-	cron.AddJob("1 0 0 1 1 ?", testJob{wg, "job3"})
+	_, _ = cron.AddJob("0 0 0 30 Feb ?", testJob{wg, "job0"})
+	_, _ = cron.AddJob("0 0 0 1 1 ?", testJob{wg, "job1"})
+	_, _ = cron.AddJob("* * * * * ?", testJob{wg, "job2"})
+	_, _ = cron.AddJob("1 0 0 1 1 ?", testJob{wg, "job3"})
 	cron.Schedule(Every(5*time.Second+5*time.Nanosecond), testJob{wg, "job4"})
 	cron.Schedule(Every(5*time.Minute), testJob{wg, "job5"})
 
@@ -436,7 +436,7 @@ func TestJob(t *testing.T) {
 	// Ensure the entries are in the right order.
 	expecteds := []string{"job2", "job4", "job5", "job1", "job3", "job0"}
 
-	var actuals []string
+	actuals := make([]string, 0)
 	for _, entry := range cron.Entries() {
 		actuals = append(actuals, entry.Job.(testJob).name)
 	}
@@ -459,7 +459,7 @@ func TestJobWithZeroTimeDoesNotRun(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	cron := New(clock)
 	calls := 0
-	cron.AddFunc("* * * * * *", func() { calls += 1 })
+	_, _ = cron.AddFunc("* * * * * *", func() { calls += 1 })
 	cron.Schedule(new(ZeroSchedule), FuncJob(func() { t.Error("expected zero task will not run") }))
 	cron.Start()
 	defer cron.Stop()

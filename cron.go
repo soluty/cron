@@ -5,6 +5,7 @@ import (
 	"log"
 	"runtime"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/alaingilbert/clockwork"
@@ -22,6 +23,7 @@ type Cron struct {
 	add      chan *Entry
 	snapshot chan []Entry
 	running  bool
+	runningMu sync.Mutex
 	ErrorLog *log.Logger
 	location *time.Location
 	PanicCh  chan string
@@ -94,6 +96,7 @@ func NewWithLocation(clock clockwork.Clock, location *time.Location) *Cron {
 		snapshot: make(chan []Entry),
 		remove:   make(chan EntryID),
 		running:  false,
+		runningMu: sync.Mutex{},
 		ErrorLog: nil,
 		location: location,
 		PanicCh:  make(chan string, 10),
@@ -121,6 +124,8 @@ func (c *Cron) AddJob(spec string, cmd Job) (EntryID, error) {
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
 func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
+	c.runningMu.Lock()
+	defer c.runningMu.Unlock()
 	c.nextID++
 	entry := &Entry{
 		ID:       c.nextID,
@@ -138,6 +143,8 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
 
 // Entries returns a snapshot of the cron entries.
 func (c *Cron) Entries() []Entry {
+	c.runningMu.Lock()
+	defer c.runningMu.Unlock()
 	if c.running {
 		c.snapshot <- nil
 		return <-c.snapshot
@@ -157,6 +164,8 @@ func (c *Cron) Entry(id EntryID) Entry {
 
 // Remove an entry from being run in the future.
 func (c *Cron) Remove(id EntryID) {
+	c.runningMu.Lock()
+	defer c.runningMu.Unlock()
 	if c.running {
 		c.remove <- id
 	} else {
@@ -171,6 +180,8 @@ func (c *Cron) Location() *time.Location {
 
 // Start the cron scheduler in its own go-routine, or no-op if already started.
 func (c *Cron) Start() {
+	c.runningMu.Lock()
+	defer c.runningMu.Unlock()
 	if c.running {
 		return
 	}
@@ -180,10 +191,13 @@ func (c *Cron) Start() {
 
 // Run the cron scheduler, or no-op if already running.
 func (c *Cron) Run() {
+	c.runningMu.Lock()
 	if c.running {
+		c.runningMu.Unlock()
 		return
 	}
 	c.running = true
+	c.runningMu.Unlock()
 	c.run()
 }
 
@@ -272,6 +286,8 @@ func (c *Cron) logf(format string, args ...interface{}) {
 
 // Stop stops the cron scheduler if it is running; otherwise it does nothing.
 func (c *Cron) Stop() {
+	c.runningMu.Lock()
+	defer c.runningMu.Unlock()
 	if !c.running {
 		return
 	}

@@ -202,16 +202,7 @@ func (c *Cron) run() {
 
 	for {
 		// Determine the next entry to run.
-		sort.Slice(c.entries, func(i, j int) bool {
-			if c.entries[i].Next.IsZero() {
-				return false
-			}
-			if c.entries[j].Next.IsZero() {
-				return true
-			}
-			return c.entries[i].Next.Before(c.entries[j].Next)
-		})
-
+		c.sortEntries()
 		var delay time.Duration
 		if len(c.entries) == 0 || c.entries[0].Next.IsZero() {
 			delay = 100000 * time.Hour // If there are no entries yet, just sleep - it still handles new entries and stop requests.
@@ -236,6 +227,18 @@ func (c *Cron) run() {
 			return
 		}
 	}
+}
+
+func (c *Cron) sortEntries() {
+	sort.Slice(c.entries, func(i, j int) bool {
+		if c.entries[i].Next.IsZero() {
+			return false
+		}
+		if c.entries[j].Next.IsZero() {
+			return true
+		}
+		return c.entries[i].Next.Before(c.entries[j].Next)
+	})
 }
 
 // startJob runs the given job in a new goroutine.

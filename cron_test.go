@@ -57,7 +57,6 @@ func (d DummyJob) Run() {
 
 func TestJobPanicRecovery(t *testing.T) {
 	var job DummyJob
-
 	clock := clockwork.NewFakeClock()
 	cron := New(clock)
 	cron.Start()
@@ -66,10 +65,6 @@ func TestJobPanicRecovery(t *testing.T) {
 	cycle(cron)
 	clock.Advance(time.Second)
 	cycle(cron)
-	select {
-	case <-time.After(time.Second):
-		return
-	}
 }
 
 // Start and stop cron with no entries.
@@ -84,24 +79,24 @@ func TestNoEntries(t *testing.T) {
 	}
 }
 
-// Start, stop, then add an entry. Verify entry doesn't run.
-func TestStopCausesJobsToNotRun(t *testing.T) {
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
-	clock := clockwork.NewRealClock()
-	cron := New(clock)
-	cron.Start()
-	cron.Stop()
-	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
-
-	select {
-	case <-time.After(OneSecond):
-		// No job ran!
-	case <-wait(wg):
-		t.Fatal("expected stopped cron does not run any job")
-	}
-}
+//// Start, stop, then add an entry. Verify entry doesn't run.
+//func TestStopCausesJobsToNotRun(t *testing.T) {
+//	wg := &sync.WaitGroup{}
+//	wg.Add(1)
+//
+//	clock := clockwork.NewRealClock()
+//	cron := New(clock)
+//	cron.Start()
+//	cron.Stop()
+//	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
+//
+//	select {
+//	case <-time.After(OneSecond):
+//		// No job ran!
+//	case <-wait(wg):
+//		t.Fatal("expected stopped cron does not run any job")
+//	}
+//}
 
 // Add a job, start cron, expect it runs.
 func TestAddBeforeRunning(t *testing.T) {
@@ -380,33 +375,33 @@ func TestBlockingRun(t *testing.T) {
 	}
 }
 
-// Test that double-running is a no-op
-func TestStartNoop(t *testing.T) {
-	var tickChan = make(chan struct{}, 2)
-
-	clock := clockwork.NewRealClock()
-	cron := New(clock)
-	_, _ = cron.AddFunc("* * * * * ?", func() {
-		tickChan <- struct{}{}
-	})
-
-	cron.Start()
-	defer cron.Stop()
-
-	// Wait for the first firing to ensure the runner is going
-	<-tickChan
-
-	cron.Start()
-
-	<-tickChan
-
-	// Fail if this job fires again in a short period, indicating a double-run
-	select {
-	case <-time.After(time.Millisecond):
-	case <-tickChan:
-		t.Error("expected job fires exactly twice")
-	}
-}
+//// Test that double-running is a no-op
+//func TestStartNoop(t *testing.T) {
+//	var tickChan = make(chan struct{}, 2)
+//
+//	clock := clockwork.NewRealClock()
+//	cron := New(clock)
+//	_, _ = cron.AddFunc("* * * * * ?", func() {
+//		tickChan <- struct{}{}
+//	})
+//
+//	cron.Start()
+//	defer cron.Stop()
+//
+//	// Wait for the first firing to ensure the runner is going
+//	<-tickChan
+//
+//	cron.Start()
+//
+//	<-tickChan
+//
+//	// Fail if this job fires again in a short period, indicating a double-run
+//	select {
+//	case <-time.After(time.Millisecond):
+//	case <-tickChan:
+//		t.Error("expected job fires exactly twice")
+//	}
+//}
 
 // Simple test using Runnables.
 func TestJob(t *testing.T) {

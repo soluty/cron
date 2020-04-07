@@ -21,7 +21,6 @@ type Cron struct {
 	entries  []*Entry
 	stop     chan struct{}
 	add      chan *Entry
-	snapshot chan []Entry
 	running  bool
 	runningMu sync.Mutex
 	ErrorLog *log.Logger
@@ -93,7 +92,6 @@ func NewWithLocation(clock clockwork.Clock, location *time.Location) *Cron {
 		entries:  nil,
 		add:      make(chan *Entry),
 		stop:     make(chan struct{}),
-		snapshot: make(chan []Entry),
 		remove:   make(chan EntryID),
 		running:  false,
 		runningMu: sync.Mutex{},
@@ -145,10 +143,6 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
 func (c *Cron) Entries() []Entry {
 	c.runningMu.Lock()
 	defer c.runningMu.Unlock()
-	if c.running {
-		c.snapshot <- nil
-		return <-c.snapshot
-	}
 	return c.entrySnapshot()
 }
 
@@ -257,10 +251,6 @@ func (c *Cron) run() {
 				now = c.now()
 				newEntry.Next = newEntry.Schedule.Next(now)
 				c.entries = append(c.entries, newEntry)
-
-			case <-c.snapshot:
-				c.snapshot <- c.entrySnapshot()
-				continue
 
 			case id := <-c.remove:
 				c.removeEntry(id)

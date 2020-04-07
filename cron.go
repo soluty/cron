@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/alaingilbert/clockwork"
@@ -22,8 +23,7 @@ type Cron struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	update    chan struct{}
-	running   bool
-	runningMu sync.Mutex
+	running   int32 // atomic value
 	ErrorLog  *log.Logger
 	location  *time.Location
 	PanicCh   chan string
@@ -72,16 +72,14 @@ func New(clock clockwork.Clock) *Cron {
 func NewWithLocation(clock clockwork.Clock, location *time.Location) *Cron {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Cron{
-		clock:     clock,
-		entries:   nil,
-		ctx:       ctx,
-		cancel:    cancel,
-		update:    make(chan struct{}),
-		running:   false,
-		runningMu: sync.Mutex{},
-		ErrorLog:  nil,
-		location:  location,
-		PanicCh:   make(chan string, 10),
+		clock:    clock,
+		entries:  nil,
+		ctx:      ctx,
+		cancel:   cancel,
+		update:   make(chan struct{}),
+		ErrorLog: nil,
+		location: location,
+		PanicCh:  make(chan string, 10),
 	}
 }
 
@@ -106,8 +104,6 @@ func (c *Cron) AddJob(spec string, cmd Job) (EntryID, error) {
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
 func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
-	c.runningMu.Lock()
-	defer c.runningMu.Unlock()
 	c.nextID++
 	entry := &Entry{
 		ID:       c.nextID,
@@ -116,7 +112,7 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
 	}
 	entry.Next = entry.Schedule.Next(c.now())
 	c.entries = append(c.entries, entry)
-	if c.running {
+	if atomic.LoadInt32(&c.running) == 1 {
 		c.update <- struct{}{}
 	}
 	return entry.ID
@@ -124,8 +120,6 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
 
 // Entries returns a snapshot of the cron entries.
 func (c *Cron) Entries() []Entry {
-	c.runningMu.Lock()
-	defer c.runningMu.Unlock()
 	return c.entrySnapshot()
 }
 
@@ -141,10 +135,8 @@ func (c *Cron) Entry(id EntryID) Entry {
 
 // Remove an entry from being run in the future.
 func (c *Cron) Remove(id EntryID) {
-	c.runningMu.Lock()
-	defer c.runningMu.Unlock()
 	c.removeEntry(id)
-	if c.running {
+	if atomic.LoadInt32(&c.running) == 1 {
 		c.update <- struct{}{}
 	}
 }
@@ -156,23 +148,17 @@ func (c *Cron) Location() *time.Location {
 
 // Start the cron scheduler in its own go-routine, or no-op if already started.
 func (c *Cron) Start() {
-	c.runningMu.Lock()
-	defer c.runningMu.Unlock()
-	if c.running {
+	if !atomic.CompareAndSwapInt32(&c.running, 0, 1) {
 		return
 	}
-	c.running = true
 	go c.run()
 }
 
 // Stop stops the cron scheduler if it is running; otherwise it does nothing.
 // A context is returned so the caller can wait for running jobs to complete.
 func (c *Cron) Stop() context.Context {
-	c.runningMu.Lock()
-	defer c.runningMu.Unlock()
-	if c.running {
+	if atomic.CompareAndSwapInt32(&c.running, 1, 0) {
 		c.cancel()
-		c.running = false
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -184,13 +170,9 @@ func (c *Cron) Stop() context.Context {
 
 // Run the cron scheduler, or no-op if already running.
 func (c *Cron) Run() {
-	c.runningMu.Lock()
-	if c.running {
-		c.runningMu.Unlock()
+	if !atomic.CompareAndSwapInt32(&c.running, 0, 1) {
 		return
 	}
-	c.running = true
-	c.runningMu.Unlock()
 	c.run()
 }
 

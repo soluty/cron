@@ -220,7 +220,7 @@ func (c *Cron) run() {
 		}
 
 		select {
-		case <-time.After(delay):
+		case <-c.clock.After(delay):
 			now = c.now()
 			// Run every entry whose next time was less than now
 			for _, e := range c.entries {

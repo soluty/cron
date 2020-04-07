@@ -27,6 +27,7 @@ type Cron struct {
 	ErrorLog  *log.Logger
 	location  *time.Location
 	PanicCh   chan string
+	jobWaiter sync.WaitGroup
 }
 
 type EntryID int
@@ -184,14 +185,20 @@ func (c *Cron) Start() {
 }
 
 // Stop stops the cron scheduler if it is running; otherwise it does nothing.
-func (c *Cron) Stop() {
+// A context is returned so the caller can wait for running jobs to complete.
+func (c *Cron) Stop() context.Context {
 	c.runningMu.Lock()
 	defer c.runningMu.Unlock()
-	if !c.running {
-		return
+	if c.running {
+		c.cancel()
+		c.running = false
 	}
-	c.cancel()
-	c.running = false
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		c.jobWaiter.Wait()
+		cancel()
+	}()
+	return ctx
 }
 
 // Run the cron scheduler, or no-op if already running.
@@ -253,7 +260,7 @@ func (c *Cron) run() {
 					if e.Next.After(now) || e.Next.IsZero() {
 						break
 					}
-					go c.runWithRecovery(e.Job)
+					c.startJob(e.Job)
 					e.Prev = e.Next
 					e.Next = e.Schedule.Next(now)
 				}
@@ -266,6 +273,15 @@ func (c *Cron) run() {
 			break
 		}
 	}
+}
+
+// startJob runs the given job in a new goroutine.
+func (c *Cron) startJob(j Job) {
+	c.jobWaiter.Add(1)
+	go func() {
+		defer c.jobWaiter.Done()
+		j.Run()
+	}()
 }
 
 // Logs an error to stderr or to the configured error log

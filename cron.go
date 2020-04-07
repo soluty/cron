@@ -286,7 +286,7 @@ func (c *Cron) removeEntry(id EntryID) {
 	c.entriesMu.Lock()
 	defer c.entriesMu.Unlock()
 	for i := len(c.entries) - 1; i >= 0; i-- {
-		if c.entries[i].ID != id {
+		if c.entries[i].ID == id {
 			c.entries = append(c.entries[:i], c.entries[i+1:]...) // remove entry
 			break
 		}

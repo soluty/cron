@@ -63,25 +63,6 @@ type Entry struct {
 	Job Job
 }
 
-// byTime is a wrapper for sorting the entry array by time
-// (with zero time at the end).
-type byTime []*Entry
-
-func (s byTime) Len() int      { return len(s) }
-func (s byTime) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s byTime) Less(i, j int) bool {
-	// Two zero times should return false.
-	// Otherwise, zero is "greater" than any other time.
-	// (To sort it at the end of the list.)
-	if s[i].Next.IsZero() {
-		return false
-	}
-	if s[j].Next.IsZero() {
-		return true
-	}
-	return s[i].Next.Before(s[j].Next)
-}
-
 // New returns a new Cron job runner, in the Local time zone.
 func New(clock clockwork.Clock) *Cron {
 	return NewWithLocation(clock, clock.Location())
@@ -239,13 +220,19 @@ func (c *Cron) run() {
 
 	for {
 		// Determine the next entry to run.
-		sort.Sort(byTime(c.entries))
+		sort.Slice(c.entries, func(i, j int) bool {
+			if c.entries[i].Next.IsZero() {
+				return false
+			}
+			if c.entries[j].Next.IsZero() {
+				return true
+			}
+			return c.entries[i].Next.Before(c.entries[j].Next)
+		})
 
 		var delay time.Duration
 		if len(c.entries) == 0 || c.entries[0].Next.IsZero() {
-			// If there are no entries yet, just sleep - it still handles new entries
-			// and stop requests.
-			delay = 100000 * time.Hour
+			delay = 100000 * time.Hour // If there are no entries yet, just sleep - it still handles new entries and stop requests.
 		} else {
 			delay = c.entries[0].Next.Sub(now)
 		}

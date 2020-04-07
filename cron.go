@@ -83,7 +83,7 @@ func (s byTime) Less(i, j int) bool {
 
 // New returns a new Cron job runner, in the Local time zone.
 func New(clock clockwork.Clock) *Cron {
-	return NewWithLocation(clock, clock.Now().Location())
+	return NewWithLocation(clock, clock.Location())
 }
 
 // NewWithLocation returns a new Cron job runner.

@@ -3,6 +3,7 @@ package cron
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -150,13 +151,11 @@ func TestAddWhileRunningWithDelay(t *testing.T) {
 	cycle(cron)
 	clock.Advance(time.Second)
 	cycle(cron)
-	var calls = 0
-	_, _ = cron.AddFunc("* * * * * *", func() { calls += 1 })
+	var calls int32
+	_, _ = cron.AddFunc("* * * * * *", func() { atomic.AddInt32(&calls, 1) })
 	clock.Advance(time.Second)
 	cycle(cron)
-	if calls != 1 {
-		t.Errorf("called %d times, expected 1\n", calls)
-	}
+	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 }
 
 // Test timing with Entries.
@@ -441,17 +440,15 @@ func (*ZeroSchedule) Next(time.Time) time.Time {
 func TestJobWithZeroTimeDoesNotRun(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
-	calls := 0
-	_, _ = cron.AddFunc("* * * * * *", func() { calls += 1 })
+	var calls int32
+	_, _ = cron.AddFunc("* * * * * *", func() { atomic.AddInt32(&calls, 1) })
 	cron.Schedule(new(ZeroSchedule), FuncJob(func() { t.Error("expected zero task will not run") }))
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
 	clock.Advance(time.Second)
 	cycle(cron)
-	if calls != 1 {
-		t.Errorf("called %d times, expected 1\n", calls)
-	}
+	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 }
 
 func wait(wg *sync.WaitGroup) chan bool {

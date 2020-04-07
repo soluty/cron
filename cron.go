@@ -284,10 +284,14 @@ func (c *Cron) setEntriesNext() {
 }
 
 func (c *Cron) appendEntry(entry *Entry) {
+	c.entriesMu.Lock()
+	defer c.entriesMu.Unlock()
 	c.entries = append(c.entries, entry)
 }
 
 func (c *Cron) removeEntry(id EntryID) {
+	c.entriesMu.Lock()
+	defer c.entriesMu.Unlock()
 	for i := len(c.entries) - 1; i >= 0; i-- {
 		if c.entries[i].ID != id {
 			c.entries = append(c.entries[:i], c.entries[i+1:]...) // remove entry

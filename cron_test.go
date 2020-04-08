@@ -492,6 +492,33 @@ func wait(wg *sync.WaitGroup) chan bool {
 	return ch
 }
 
+func TestRemove(t *testing.T) {
+	var calls int32
+	clock := clockwork.NewFakeClock()
+	cron := New(WithClock(clock))
+	id, _ := cron.AddFunc("* * * * * *", func() { atomic.AddInt32(&calls, 1) })
+	assert.Equal(t, int32(0), atomic.LoadInt32(&calls))
+	cron.Start()
+	defer cron.Stop()
+	cycle(cron)
+	clock.Advance(time.Second)
+	cycle(cron)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
+	clock.Advance(time.Second)
+	cycle(cron)
+	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
+	clock.Advance(500 * time.Millisecond)
+	cycle(cron)
+	cron.Remove(id)
+	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
+	clock.Advance(500 * time.Millisecond)
+	cycle(cron)
+	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
+	clock.Advance(time.Second)
+	cycle(cron)
+	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
+}
+
 // Issue #206
 // Ensure that the next run of a job after removing an entry is accurate.
 func TestScheduleAfterRemoval(t *testing.T) {

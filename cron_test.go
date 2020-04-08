@@ -29,14 +29,12 @@ func TestFuncPanicRecovery1(t *testing.T) {
 	cron := New(WithClock(clock))
 	cron.Start()
 	defer cron.Stop()
-	nbCall := 0
-	_, _ = cron.AddFunc("* * * * * *", func() {
-		nbCall++
-	})
+	var nbCall int32
+	_, _ = cron.AddFunc("* * * * * *", func() { atomic.AddInt32(&nbCall, 1) })
 	cycle(cron)
 	clock.Advance(10 * time.Second)
 	cycle(cron)
-	assert.Equal(t, 1, nbCall)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&nbCall))
 }
 
 type DummyJob struct{}

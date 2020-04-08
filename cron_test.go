@@ -179,6 +179,26 @@ func TestSnapshotEntries(t *testing.T) {
 	}
 }
 
+func TestEntry(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	cron := New(WithClock(clock))
+	id, _ := cron.AddFunc("@every 2s", func() {})
+	cron.Start()
+	defer cron.Stop()
+	entry := cron.Entry(id)
+	assert.Equal(t, id, entry.ID)
+}
+
+func TestUnexistingEntry(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	cron := New(WithClock(clock))
+	_, _ = cron.AddFunc("@every 2s", func() {})
+	cron.Start()
+	defer cron.Stop()
+	entry := cron.Entry(EntryID(123))
+	assert.Equal(t, EntryID(0), entry.ID)
+}
+
 // Test that the entries are correctly sorted.
 // Add a bunch of long-in-the-future entries, and an immediate entry, and ensure
 // that the immediate entry runs immediately.

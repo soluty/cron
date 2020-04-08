@@ -122,7 +122,7 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
 		Job:      cmd,
 	}
 	entry.Next = entry.Schedule.Next(c.now())
-	c.appendEntry(entry)
+	c.insertSorted(entry)
 	c.entriesUpdated()
 	return entry.ID
 }
@@ -200,7 +200,6 @@ func (c *Cron) run() {
 	c.setEntriesNext()
 	for {
 		// Determine the next entry to run.
-		c.sortEntries()
 		delay := c.getNextDelay()
 		select {
 		case <-c.clock.After(delay):
@@ -278,10 +277,21 @@ func (c *Cron) setEntriesNext() {
 	}
 }
 
-func (c *Cron) appendEntry(entry *Entry) {
+func (c *Cron) insertSorted(entry *Entry) {
 	c.entriesMu.Lock()
 	defer c.entriesMu.Unlock()
-	c.entries = append(c.entries, entry)
+	i := sort.Search(len(c.entries), func(i int) bool {
+		if c.entries[i].Next.IsZero() {
+			return true
+		}
+		if entry.Next.IsZero() {
+			return false
+		}
+		return c.entries[i].Next.After(entry.Next)
+	})
+	c.entries = append(c.entries, &Entry{})
+	copy(c.entries[i+1:], c.entries[i:])
+	c.entries[i] = entry
 }
 
 func (c *Cron) removeEntry(id EntryID) {

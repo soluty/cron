@@ -84,9 +84,6 @@ func New(opts ...Option) *Cron {
 	return c
 }
 
-func (c *Cron) isRunning() bool {
-	return atomic.LoadInt32(&c.running) == 1
-}
 func (c *Cron) startRunning() bool {
 	return atomic.CompareAndSwapInt32(&c.running, 0, 1)
 }
@@ -217,20 +214,6 @@ func (c *Cron) entriesUpdated() {
 	case c.update <- struct{}{}:
 	default:
 	}
-}
-
-func (c *Cron) sortEntries() {
-	c.entriesMu.Lock()
-	defer c.entriesMu.Unlock()
-	sort.Slice(c.entries, func(i, j int) bool {
-		if c.entries[i].Next.IsZero() {
-			return false
-		}
-		if c.entries[j].Next.IsZero() {
-			return true
-		}
-		return c.entries[i].Next.Before(c.entries[j].Next)
-	})
 }
 
 // entrySnapshot returns a copy of the current cron entry list.

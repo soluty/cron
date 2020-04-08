@@ -16,16 +16,12 @@ func TestFuncPanicRecovery(t *testing.T) {
 	cron := New(WithClock(clock))
 	cron.Start()
 	defer cron.Stop()
-	nbCall := 0
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	_, _ = cron.AddFunc("* * * * *", func() {
-		nbCall++
-		wg.Done()
-	})
+	var nbCall int32
+	_, _ = cron.AddFunc("* * * * *", func() { atomic.AddInt32(&nbCall, 1) })
+	cycle(cron)
 	clock.Advance(61 * time.Second)
-	wg.Wait()
-	assert.Equal(t, 1, nbCall)
+	cycle(cron)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&nbCall))
 }
 
 func TestFuncPanicRecovery1(t *testing.T) {
@@ -34,14 +30,12 @@ func TestFuncPanicRecovery1(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	nbCall := 0
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
 	_, _ = cron.AddFunc("* * * * * *", func() {
 		nbCall++
-		wg.Done()
 	})
+	cycle(cron)
 	clock.Advance(10 * time.Second)
-	wg.Wait()
+	cycle(cron)
 	assert.Equal(t, 1, nbCall)
 }
 
@@ -125,6 +119,7 @@ func TestAddWhileRunning(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
+	cycle(cron)
 	clock.Advance(time.Second)
 	cycle(cron)
 
@@ -177,7 +172,11 @@ func TestSnapshotEntries(t *testing.T) {
 	clock.Advance(time.Second)
 	cycle(cron)
 	// Even though Entries was called, the cron should fire at the 2 second mark.
-	<-wait(wg)
+	select {
+	case <-time.After(time.Second):
+		t.Fail()
+	case <-wait(wg):
+	}
 }
 
 // Test that the entries are correctly sorted.
@@ -200,7 +199,11 @@ func TestMultipleEntries(t *testing.T) {
 	cycle(cron)
 	clock.Advance(time.Second)
 	cycle(cron)
-	<-wait(wg)
+	select {
+	case <-time.After(time.Second):
+		t.Fail()
+	case <-wait(wg):
+	}
 }
 
 // Test running the same job twice.
@@ -472,26 +475,22 @@ func TestScheduleAfterRemoval(t *testing.T) {
 	// 750ms later. Correct behavior would be to still run the job again in
 	// 250ms, but the bug would cause it to run instead 1s later.
 
-	var calls int
-	var mu sync.Mutex
-
+	var calls int32
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
 	hourJob := cron.Schedule(Every(time.Hour), FuncJob(func() {}))
 	cron.Schedule(Every(time.Second), FuncJob(func() {
-		mu.Lock()
-		defer mu.Unlock()
-		switch calls {
+		switch atomic.LoadInt32(&calls) {
 		case 0:
 			wg1.Done()
-			calls++
+			atomic.AddInt32(&calls, 1)
 		case 1:
 			clock.Advance(750 * time.Millisecond)
-			cycle(cron)
 			cron.Remove(hourJob)
-			calls++
+			cycle(cron)
+			atomic.AddInt32(&calls, 1)
 		case 2:
-			calls++
+			atomic.AddInt32(&calls, 1)
 			wg2.Done()
 		case 3:
 			panic("unexpected 3rd call")

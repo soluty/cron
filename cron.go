@@ -314,15 +314,6 @@ func (c *Cron) startJob(j Job) {
 	}()
 }
 
-// Logs an error to stderr or to the configured error log
-func (c *Cron) logf(format string, args ...interface{}) {
-	if c.ErrorLog != nil {
-		c.ErrorLog.Printf(format, args...)
-	} else {
-		log.Printf(format, args...)
-	}
-}
-
 // Location gets the time zone location
 func (c *Cron) Location() *time.Location {
 	return c.location

@@ -67,24 +67,19 @@ func TestNoEntries(t *testing.T) {
 	}
 }
 
-//// Start, stop, then add an entry. Verify entry doesn't run.
-//func TestStopCausesJobsToNotRun(t *testing.T) {
-//	wg := &sync.WaitGroup{}
-//	wg.Add(1)
-//
-//	clock := clockwork.NewRealClock()
-//	cron := New(clock)
-//	cron.Start()
-//	cron.Stop()
-//	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
-//
-//	select {
-//	case <-time.After(OneSecond):
-//		// No job ran!
-//	case <-wait(wg):
-//		t.Fatal("expected stopped cron does not run any job")
-//	}
-//}
+// Start, stop, then add an entry. Verify entry doesn't run.
+func TestStopCausesJobsToNotRun(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	cron := New(WithClock(clock))
+	cron.Start()
+	cron.Stop()
+	var call int32
+	_, _ = cron.AddFunc("* * * * * ?", func() { atomic.AddInt32(&call, 1) })
+	cycle(cron)
+	clock.Advance(time.Second)
+	cycle(cron)
+	assert.Equal(t, int32(0), atomic.LoadInt32(&call))
+}
 
 // Add a job, start cron, expect it runs.
 func TestAddBeforeRunning(t *testing.T) {

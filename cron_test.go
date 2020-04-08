@@ -521,6 +521,6 @@ func TestScheduleAfterRemoval(t *testing.T) {
 
 // run one logic cycle
 func cycle(cron *Cron) {
-	cron.update <- struct{}{}
-	time.Sleep(time.Millisecond)
+	cron.entriesUpdated()
+	time.Sleep(5 * time.Millisecond)
 }

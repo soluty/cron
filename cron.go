@@ -123,9 +123,7 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
 	}
 	entry.Next = entry.Schedule.Next(c.now())
 	c.appendEntry(entry)
-	if c.isRunning() {
-		c.update <- struct{}{}
-	}
+	c.entriesUpdated()
 	return entry.ID
 }
 
@@ -147,9 +145,7 @@ func (c *Cron) Entry(id EntryID) Entry {
 // Remove an entry from being run in the future.
 func (c *Cron) Remove(id EntryID) {
 	c.removeEntry(id)
-	if c.isRunning() {
-		c.update <- struct{}{}
-	}
+	c.entriesUpdated()
 }
 
 // Start the cron scheduler in its own go-routine, or no-op if already started.
@@ -215,6 +211,14 @@ func (c *Cron) run() {
 		case <-c.ctx.Done():
 			return
 		}
+	}
+}
+
+// trigger an update of the entries in the run loop
+func (c *Cron) entriesUpdated() {
+	select {
+	case c.update <- struct{}{}:
+	default:
 	}
 }
 

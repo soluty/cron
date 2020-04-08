@@ -393,6 +393,22 @@ func TestStartNoop(t *testing.T) {
 	assert.False(t, started)
 }
 
+// TestChangeLocationWhileRunning ...
+func TestChangeLocationWhileRunning(t *testing.T) {
+	newLoc, _ := time.LoadLocation("Atlantic/Cape_Verde")
+	clock := clockwork.NewFakeClock()
+	cron := New(WithClock(clock), WithLocation(time.UTC))
+	cron.Start()
+	defer cron.Stop()
+	_, _ = cron.AddFunc("* * * * * ?", func() {})
+	_, _ = cron.AddFunc("0 0 1 * * ?", func() {})
+	assert.Equal(t, clock.Now().Add(time.Second).In(time.UTC), cron.entries[0].Next)
+	assert.Equal(t, time.Date(1984, time.April, 4, 1, 0, 0, 0, time.UTC), cron.entries[1].Next)
+	cron.SetLocation(newLoc)
+	assert.Equal(t, clock.Now().Add(time.Second).In(newLoc), cron.entries[0].Next)
+	assert.Equal(t, time.Date(1984, time.April, 4, 2, 0, 0, 0, time.UTC).In(newLoc), cron.entries[1].Next)
+}
+
 // Simple test using Runnables.
 func TestJob(t *testing.T) {
 	wg := &sync.WaitGroup{}

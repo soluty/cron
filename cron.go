@@ -318,6 +318,13 @@ func (c *Cron) Location() *time.Location {
 	return c.location
 }
 
+// SetLocation ...
+func (c *Cron) SetLocation(newLoc *time.Location) {
+	c.location = newLoc
+	c.setEntriesNext()
+	c.entriesUpdated()
+}
+
 // now returns current time in c location
 func (c *Cron) now() time.Time {
 	return c.clock.Now().In(c.Location())

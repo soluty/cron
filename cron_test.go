@@ -420,6 +420,7 @@ func TestChangeLocationWhileRunning(t *testing.T) {
 	cron.SetLocation(newLoc)
 	assert.Equal(t, clock.Now().Add(time.Second).In(newLoc), cron.entries[0].Next)
 	assert.Equal(t, time.Date(1984, time.April, 4, 2, 0, 0, 0, time.UTC).In(newLoc), cron.entries[1].Next)
+	assert.Equal(t, time.Date(1984, time.April, 4, 1, 0, 0, 0, newLoc), cron.entries[1].Next)
 }
 
 // Simple test using Runnables.
@@ -579,4 +580,25 @@ func TestScheduleAfterRemoval(t *testing.T) {
 func cycle(cron *Cron) {
 	cron.entriesUpdated()
 	time.Sleep(5 * time.Millisecond)
+}
+
+func TestTwoCrons(t *testing.T) {
+	var calls int32
+	clock := clockwork.NewFakeClock()
+	cron := New(WithClock(clock))
+	_, _ = cron.AddFunc("1 * * * * *", func() { atomic.AddInt32(&calls, 1) })
+	_, _ = cron.AddFunc("3 * * * * *", func() { atomic.AddInt32(&calls, 1) })
+	assert.Equal(t, int32(0), atomic.LoadInt32(&calls))
+	cron.Start()
+	defer cron.Stop()
+	cycle(cron)
+	clock.Advance(time.Second)
+	cycle(cron)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
+	clock.Advance(time.Second)
+	cycle(cron)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
+	clock.Advance(time.Second)
+	cycle(cron)
+	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
 }

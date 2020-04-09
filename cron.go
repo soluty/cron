@@ -197,6 +197,7 @@ func (c *Cron) run() {
 	c.setEntriesNext()
 	for {
 		// Determine the next entry to run.
+		c.sortEntries()
 		delay := c.getNextDelay()
 		select {
 		case <-c.clock.After(delay):
@@ -258,6 +259,20 @@ func (c *Cron) setEntriesNext() {
 	for _, entry := range c.entries {
 		entry.Next = entry.Schedule.Next(now)
 	}
+}
+
+func (c *Cron) sortEntries() {
+	c.entriesMu.Lock()
+	defer c.entriesMu.Unlock()
+	sort.Slice(c.entries, func(i, j int) bool {
+		if c.entries[i].Next.IsZero() {
+			return false
+		}
+		if c.entries[j].Next.IsZero() {
+			return true
+		}
+		return c.entries[i].Next.Before(c.entries[j].Next)
+	})
 }
 
 func (c *Cron) insertSorted(entry *Entry) {

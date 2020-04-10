@@ -639,7 +639,6 @@ func TestSetEntriesNext(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
 	_, _ = cron.AddFunc("*/5 * * * * *", func() { atomic.AddInt32(&calls, 1) })
-	_, _ = cron.AddFunc("0 1 * * * *", func() { atomic.AddInt32(&calls, 1) })
 	assert.Equal(t, int32(0), atomic.LoadInt32(&calls))
 	clock.Advance(58 * time.Second)
 	cycle(cron)
@@ -652,5 +651,5 @@ func TestSetEntriesNext(t *testing.T) {
 	assert.Equal(t, int32(0), atomic.LoadInt32(&calls))
 	clock.Advance(time.Second)
 	cycle(cron)
-	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
+	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 }

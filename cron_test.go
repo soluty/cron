@@ -633,3 +633,24 @@ func TestMultipleCrons(t *testing.T) {
 	cycle(cron)
 	assert.Equal(t, int32(8), atomic.LoadInt32(&calls))
 }
+
+func TestSetEntriesNext(t *testing.T) {
+	var calls int32
+	clock := clockwork.NewFakeClock()
+	cron := New(WithClock(clock))
+	_, _ = cron.AddFunc("*/5 * * * * *", func() { atomic.AddInt32(&calls, 1) })
+	_, _ = cron.AddFunc("0 1 * * * *", func() { atomic.AddInt32(&calls, 1) })
+	assert.Equal(t, int32(0), atomic.LoadInt32(&calls))
+	clock.Advance(58 * time.Second)
+	cycle(cron)
+	cron.Start()
+	defer cron.Stop()
+	assert.Equal(t, int32(0), atomic.LoadInt32(&calls))
+	cycle(cron)
+	clock.Advance(time.Second)
+	cycle(cron)
+	assert.Equal(t, int32(0), atomic.LoadInt32(&calls))
+	clock.Advance(time.Second)
+	cycle(cron)
+	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
+}

@@ -2,7 +2,6 @@ package cron
 
 import (
 	"context"
-	"log"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -23,7 +22,6 @@ type Cron struct {
 	cancel    context.CancelFunc
 	update    chan struct{}
 	running   int32 // atomic value
-	ErrorLog  *log.Logger
 	location  *time.Location
 	jobWaiter sync.WaitGroup
 }
@@ -71,7 +69,6 @@ func New(opts ...Option) *Cron {
 		ctx:      ctx,
 		cancel:   cancel,
 		update:   make(chan struct{}),
-		ErrorLog: nil,
 		location: clock.Location(),
 	}
 	for _, opt := range opts {

@@ -26,6 +26,14 @@ func wait(wg *sync.WaitGroup) <-chan struct{} {
 	return ch
 }
 
+func recvWithTimeout(t *testing.T, ch <-chan struct{}, msg ...string) {
+	select {
+	case <-time.After(time.Second):
+		t.Fatal(msg)
+	case <-ch:
+	}
+}
+
 type DummyJob struct{}
 
 func (d DummyJob) Run() {
@@ -75,11 +83,7 @@ func TestNoEntries(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
 	cron.Start()
-	select {
-	case <-time.After(time.Second):
-		t.Fatal("expected cron will be stopped immediately")
-	case <-cron.Stop().Done():
-	}
+	recvWithTimeout(t, cron.Stop().Done(), "expected cron will be stopped immediately")
 }
 
 // Start, stop, then add an entry. Verify entry doesn't run.
@@ -109,12 +113,7 @@ func TestAddBeforeRunning(t *testing.T) {
 	cycle(cron)
 	clock.Advance(time.Second)
 	cycle(cron)
-	// Give cron 2 seconds to run our job (which is always activated).
-	select {
-	case <-time.After(time.Second):
-		t.Fatal("expected job runs")
-	case <-wait(wg):
-	}
+	recvWithTimeout(t, wait(wg), "expected job runs")
 }
 
 // Start cron, add a job, expect it runs.
@@ -130,12 +129,7 @@ func TestAddWhileRunning(t *testing.T) {
 	cycle(cron)
 	clock.Advance(time.Second)
 	cycle(cron)
-
-	select {
-	case <-time.After(3000 * time.Millisecond):
-		t.Fatal("expected job runs")
-	case <-wait(wg):
-	}
+	recvWithTimeout(t, wait(wg), "expected job runs")
 }
 
 // Test for #34. Adding a job after calling start results in multiple job invocations
@@ -180,11 +174,7 @@ func TestSnapshotEntries(t *testing.T) {
 	clock.Advance(time.Second)
 	cycle(cron)
 	// Even though Entries was called, the cron should fire at the 2 second mark.
-	select {
-	case <-time.After(time.Second):
-		t.Fail()
-	case <-wait(wg):
-	}
+	recvWithTimeout(t, wait(wg))
 }
 
 func TestEntry(t *testing.T) {
@@ -227,11 +217,7 @@ func TestMultipleEntries(t *testing.T) {
 	cycle(cron)
 	clock.Advance(time.Second)
 	cycle(cron)
-	select {
-	case <-time.After(time.Second):
-		t.Fail()
-	case <-wait(wg):
-	}
+	recvWithTimeout(t, wait(wg))
 }
 
 // Test running the same job twice.
@@ -253,11 +239,7 @@ func TestRunningJobTwice(t *testing.T) {
 	clock.Advance(time.Second)
 	cycle(cron)
 
-	select {
-	case <-time.After(time.Second):
-		t.Error("expected job fires 2 times")
-	case <-wait(wg):
-	}
+	recvWithTimeout(t, wait(wg), "expected job fires 2 times")
 }
 
 func TestRunningMultipleSchedules(t *testing.T) {
@@ -278,11 +260,7 @@ func TestRunningMultipleSchedules(t *testing.T) {
 	cycle(cron)
 	clock.Advance(time.Second)
 	cycle(cron)
-	select {
-	case <-time.After(time.Second):
-		t.Error("expected job fires 2 times")
-	case <-wait(wg):
-	}
+	recvWithTimeout(t, wait(wg), "expected job fires 2 times")
 }
 
 // Test that the cron is run in the local time zone (as opposed to UTC).
@@ -305,11 +283,7 @@ func TestLocalTimezone(t *testing.T) {
 	clock.Advance(time.Second)
 	cycle(cron)
 
-	select {
-	case <-time.After(time.Second):
-		t.Error("expected job fires 2 times")
-	case <-wait(wg):
-	}
+	recvWithTimeout(t, wait(wg), "expected job fires 2 times")
 }
 
 // Test that the cron is run in the given time zone (as opposed to local).
@@ -338,11 +312,7 @@ func TestNonLocalTimezone(t *testing.T) {
 	clock.Advance(time.Second)
 	cycle(cron)
 
-	select {
-	case <-time.After(time.Second):
-		t.Error("expected job fires 2 times")
-	case <-wait(wg):
-	}
+	recvWithTimeout(t, wait(wg), "expected job fires 2 times")
 }
 
 // Test that calling stop before start silently returns without
@@ -457,11 +427,7 @@ func TestJob(t *testing.T) {
 	cycle(cron)
 	clock.Advance(time.Second)
 	cycle(cron)
-	select {
-	case <-time.After(time.Second):
-		t.FailNow()
-	case <-wait(wg):
-	}
+	recvWithTimeout(t, wait(wg))
 
 	// Ensure the entries are in the right order.
 	expecteds := []string{"job2", "job4", "job5", "job1", "job3", "job0"}
@@ -575,11 +541,7 @@ func TestScheduleAfterRemoval(t *testing.T) {
 	clock.Advance(250 * time.Millisecond)
 	cycle(cron)
 
-	select {
-	case <-time.After(2 * time.Second):
-		t.Error("expected job fires 2 times")
-	case <-wait(&wg2):
-	}
+	recvWithTimeout(t, wait(&wg2), "\"expected job fires 2 times\"")
 }
 
 func TestTwoCrons(t *testing.T) {

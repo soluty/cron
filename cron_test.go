@@ -17,6 +17,11 @@ func cycle(cron *Cron) {
 	time.Sleep(5 * time.Millisecond)
 }
 
+func advanceAndCycle(cron *Cron, d time.Duration) {
+	cron.clock.(clockwork.FakeClock).Advance(d)
+	cycle(cron)
+}
+
 func wait(wg *sync.WaitGroup) <-chan struct{} {
 	ch := make(chan struct{})
 	go func() {
@@ -48,8 +53,7 @@ func TestFuncPanicRecovery(t *testing.T) {
 	var nbCall int32
 	_, _ = cron.AddFunc("* * * * *", func() { atomic.AddInt32(&nbCall, 1) })
 	cycle(cron)
-	clock.Advance(61 * time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&nbCall))
 }
 
@@ -61,8 +65,7 @@ func TestFuncPanicRecovery1(t *testing.T) {
 	var nbCall int32
 	_, _ = cron.AddFunc("* * * * * *", func() { atomic.AddInt32(&nbCall, 1) })
 	cycle(cron)
-	clock.Advance(10 * time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&nbCall))
 }
 
@@ -73,9 +76,7 @@ func TestJobPanicRecovery(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	_, _ = cron.AddJob("* * * * * ?", job)
-	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 }
 
 // Start and stop cron with no entries.
@@ -94,9 +95,7 @@ func TestStopCausesJobsToNotRun(t *testing.T) {
 	cron.Stop()
 	var call int32
 	_, _ = cron.AddFunc("* * * * * ?", func() { atomic.AddInt32(&call, 1) })
-	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(0), atomic.LoadInt32(&call))
 }
 
@@ -111,8 +110,7 @@ func TestAddBeforeRunning(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	recvWithTimeout(t, wait(wg), "expected job runs")
 }
 
@@ -127,8 +125,7 @@ func TestAddWhileRunning(t *testing.T) {
 	defer cron.Stop()
 	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	recvWithTimeout(t, wait(wg), "expected job runs")
 }
 
@@ -138,20 +135,12 @@ func TestAddWhileRunningWithDelay(t *testing.T) {
 	cron := New(WithClock(clock))
 	cron.Start()
 	defer cron.Stop()
-	clock.Advance(time.Second)
-	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
+	advanceAndCycle(cron, time.Second)
+	advanceAndCycle(cron, time.Second)
 	var calls int32
 	_, _ = cron.AddFunc("* * * * * *", func() { atomic.AddInt32(&calls, 1) })
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 }
 
@@ -165,14 +154,11 @@ func TestSnapshotEntries(t *testing.T) {
 	_, _ = cron.AddFunc("@every 2s", func() { wg.Done() })
 	cron.Start()
 	defer cron.Stop()
-	clock.Advance(time.Second)
-	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
+	advanceAndCycle(cron, time.Second)
 	// Cron should fire in 2 seconds. After 1 second, call Entries.
 	cron.Entries()
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	// Even though Entries was called, the cron should fire at the 2 second mark.
 	recvWithTimeout(t, wait(wg))
 }
@@ -215,8 +201,7 @@ func TestMultipleEntries(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	recvWithTimeout(t, wait(wg))
 }
 
@@ -234,10 +219,8 @@ func TestRunningJobTwice(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
+	advanceAndCycle(cron, time.Second)
 
 	recvWithTimeout(t, wait(wg), "expected job fires 2 times")
 }
@@ -258,8 +241,7 @@ func TestRunningMultipleSchedules(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	recvWithTimeout(t, wait(wg), "expected job fires 2 times")
 }
 
@@ -278,10 +260,8 @@ func TestLocalTimezone(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
+	advanceAndCycle(cron, time.Second)
 
 	recvWithTimeout(t, wait(wg), "expected job fires 2 times")
 }
@@ -307,10 +287,8 @@ func TestNonLocalTimezone(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
+	advanceAndCycle(cron, time.Second)
 
 	recvWithTimeout(t, wait(wg), "expected job fires 2 times")
 }
@@ -359,8 +337,7 @@ func TestBlockingRun(t *testing.T) {
 	}()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	select {
 	case <-time.After(time.Second):
 		t.Error("expected job fires")
@@ -425,8 +402,7 @@ func TestJob(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	recvWithTimeout(t, wait(wg))
 
 	// Ensure the entries are in the right order.
@@ -460,8 +436,7 @@ func TestJobWithZeroTimeDoesNotRun(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 }
 
@@ -474,21 +449,16 @@ func TestRemove(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
-	clock.Advance(500 * time.Millisecond)
-	cycle(cron)
+	advanceAndCycle(cron, 500*time.Millisecond)
 	cron.Remove(id)
 	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
-	clock.Advance(500 * time.Millisecond)
-	cycle(cron)
+	advanceAndCycle(cron, 500*time.Millisecond)
 	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
 }
 
@@ -529,17 +499,14 @@ func TestScheduleAfterRemoval(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 
 	// the first run might be any length of time 0 - 1s, since the schedule
 	// rounds to the second. wait for the first run to true up.
 	wg1.Wait()
 
-	clock.Advance(time.Second)
-	cycle(cron)
-	clock.Advance(250 * time.Millisecond)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
+	advanceAndCycle(cron, 250*time.Millisecond)
 
 	recvWithTimeout(t, wait(&wg2), "\"expected job fires 2 times\"")
 }
@@ -554,14 +521,11 @@ func TestTwoCrons(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
 }
 
@@ -576,23 +540,17 @@ func TestMultipleCrons(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(3), atomic.LoadInt32(&calls))
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(5), atomic.LoadInt32(&calls))
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(6), atomic.LoadInt32(&calls))
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(7), atomic.LoadInt32(&calls))
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(8), atomic.LoadInt32(&calls))
 }
 
@@ -602,17 +560,13 @@ func TestSetEntriesNext(t *testing.T) {
 	cron := New(WithClock(clock))
 	_, _ = cron.AddFunc("*/5 * * * * *", func() { atomic.AddInt32(&calls, 1) })
 	assert.Equal(t, int32(0), atomic.LoadInt32(&calls))
-	clock.Advance(58 * time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, 58*time.Second)
 	cron.Start()
 	defer cron.Stop()
 	assert.Equal(t, int32(0), atomic.LoadInt32(&calls))
-	cycle(cron)
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(0), atomic.LoadInt32(&calls))
-	clock.Advance(time.Second)
-	cycle(cron)
+	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 }
 

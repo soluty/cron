@@ -11,6 +11,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// run one logic cycle
+func cycle(cron *Cron) {
+	cron.entriesUpdated()
+	time.Sleep(5 * time.Millisecond)
+}
+
+func wait(wg *sync.WaitGroup) <-chan struct{} {
+	ch := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+	return ch
+}
+
+type DummyJob struct{}
+
+func (d DummyJob) Run() {
+	panic("YOLO")
+}
+
 func TestFuncPanicRecovery(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
@@ -35,12 +56,6 @@ func TestFuncPanicRecovery1(t *testing.T) {
 	clock.Advance(10 * time.Second)
 	cycle(cron)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&nbCall))
-}
-
-type DummyJob struct{}
-
-func (d DummyJob) Run() {
-	panic("YOLO")
 }
 
 func TestJobPanicRecovery(t *testing.T) {
@@ -484,15 +499,6 @@ func TestJobWithZeroTimeDoesNotRun(t *testing.T) {
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 }
 
-func wait(wg *sync.WaitGroup) <-chan struct{} {
-	ch := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-	return ch
-}
-
 func TestRemove(t *testing.T) {
 	var calls int32
 	clock := clockwork.NewFakeClock()
@@ -574,12 +580,6 @@ func TestScheduleAfterRemoval(t *testing.T) {
 		t.Error("expected job fires 2 times")
 	case <-wait(&wg2):
 	}
-}
-
-// run one logic cycle
-func cycle(cron *Cron) {
-	cron.entriesUpdated()
-	time.Sleep(5 * time.Millisecond)
 }
 
 func TestTwoCrons(t *testing.T) {

@@ -2,9 +2,7 @@ package cron
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"runtime"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -27,7 +25,6 @@ type Cron struct {
 	running   int32 // atomic value
 	ErrorLog  *log.Logger
 	location  *time.Location
-	PanicCh   chan string
 	jobWaiter sync.WaitGroup
 }
 
@@ -76,7 +73,6 @@ func New(opts ...Option) *Cron {
 		update:   make(chan struct{}),
 		ErrorLog: nil,
 		location: clock.Location(),
-		PanicCh:  make(chan string, 10),
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -177,15 +173,7 @@ func (c *Cron) Stop() context.Context {
 
 func (c *Cron) runWithRecovery(j Job) {
 	defer func() {
-		if r := recover(); r != nil {
-			const size = 64 << 10
-			buf := make([]byte, size)
-			buf = buf[:runtime.Stack(buf, false)]
-			select {
-			case c.PanicCh <- fmt.Sprintf("cron: panic running job: %v\n%s", r, buf):
-			default:
-			}
-		}
+		recover()
 	}()
 	j.Run()
 }

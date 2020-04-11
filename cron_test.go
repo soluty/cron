@@ -60,6 +60,25 @@ func TestFuncPanicRecovery1(t *testing.T) {
 	assert.Equal(t, int32(1), atomic.LoadInt32(&nbCall))
 }
 
+func TestFuncPanicRecovery2(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	cron := New(WithClock(clock))
+	cron.Start()
+	defer cron.Stop()
+	ch := make(chan string)
+	_, _ = cron.AddFunc("* * * * * *", func() {
+		defer func() {
+			if r := recover(); r != nil {
+				ch <- fmt.Sprintf("%v", r)
+			}
+		}()
+		panic("PANIC ERROR")
+	})
+	cycle(cron)
+	advanceAndCycle(cron, time.Second)
+	assert.Equal(t, "PANIC ERROR", <-ch)
+}
+
 func TestJobPanicRecovery(t *testing.T) {
 	var job DummyJob
 	clock := clockwork.NewFakeClock()

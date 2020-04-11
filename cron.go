@@ -145,6 +145,14 @@ func (c *Cron) Remove(id EntryID) {
 	c.entriesUpdated()
 }
 
+// Run the cron scheduler, or no-op if already running.
+func (c *Cron) Run() (started bool) {
+	if started = c.startRunning(); started {
+		c.run()
+	}
+	return
+}
+
 // Start the cron scheduler in its own go-routine, or no-op if already started.
 func (c *Cron) Start() (started bool) {
 	if started = c.startRunning(); started {
@@ -165,14 +173,6 @@ func (c *Cron) Stop() context.Context {
 		cancel()
 	}()
 	return ctx
-}
-
-// Run the cron scheduler, or no-op if already running.
-func (c *Cron) Run() (started bool) {
-	if started = c.startRunning(); started {
-		c.run()
-	}
-	return
 }
 
 func (c *Cron) runWithRecovery(j Job) {

@@ -278,12 +278,12 @@ func TestStopWithoutStart(t *testing.T) {
 }
 
 type testJob struct {
-	wg   *sync.WaitGroup
-	name string
+	calls *int32
+	name  string
 }
 
 func (t testJob) Run() {
-	t.wg.Done()
+	atomic.AddInt32(t.calls, 1)
 }
 
 // Test that adding an invalid job spec returns an error
@@ -363,36 +363,24 @@ func TestChangeLocationWhileRunning(t *testing.T) {
 
 // Simple test using Runnables.
 func TestJob(t *testing.T) {
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
+	var calls int32
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
-	_, _ = cron.AddJob("0 0 0 30 Feb ?", testJob{wg, "job0"})
-	_, _ = cron.AddJob("0 0 0 1 1 ?", testJob{wg, "job1"})
-	_, _ = cron.AddJob("* * * * * ?", testJob{wg, "job2"})
-	_, _ = cron.AddJob("1 0 0 1 1 ?", testJob{wg, "job3"})
-	cron.Schedule(Every(5*time.Second+5*time.Nanosecond), testJob{wg, "job4"})
-	cron.Schedule(Every(5*time.Minute), testJob{wg, "job5"})
-
+	_, _ = cron.AddJob("0 0 0 30 Feb ?", testJob{&calls, "job0"})
+	_, _ = cron.AddJob("0 0 0 1 1 ?", testJob{&calls, "job1"})
+	_, _ = cron.AddJob("* * * * * ?", testJob{&calls, "job2"})
+	_, _ = cron.AddJob("1 0 0 1 1 ?", testJob{&calls, "job3"})
+	cron.Schedule(Every(5*time.Second+5*time.Nanosecond), testJob{&calls, "job4"})
+	cron.Schedule(Every(5*time.Minute), testJob{&calls, "job5"})
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
 	advanceAndCycle(cron, time.Second)
-	recvWithTimeout(t, wait(wg))
-
+	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 	// Ensure the entries are in the right order.
 	expecteds := []string{"job2", "job4", "job5", "job1", "job3", "job0"}
-
-	actuals := make([]string, 0)
-	for _, entry := range cron.Entries() {
-		actuals = append(actuals, entry.Job.(testJob).name)
-	}
-
-	for i, expected := range expecteds {
-		if actuals[i] != expected {
-			t.Fatalf("Jobs not in the right order.  (expected) %s != %s (actual)", expecteds, actuals)
-		}
+	for i, entry := range cron.Entries() {
+		assert.Equal(t, expecteds[i], entry.Job.(testJob).name)
 	}
 }
 

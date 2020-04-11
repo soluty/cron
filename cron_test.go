@@ -484,11 +484,11 @@ func TestJobWithZeroTimeDoesNotRun(t *testing.T) {
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 }
 
-func wait(wg *sync.WaitGroup) chan bool {
-	ch := make(chan bool)
+func wait(wg *sync.WaitGroup) <-chan struct{} {
+	ch := make(chan struct{})
 	go func() {
 		wg.Wait()
-		ch <- true
+		close(ch)
 	}()
 	return ch
 }

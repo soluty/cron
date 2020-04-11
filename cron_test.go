@@ -502,7 +502,6 @@ func TestSetEntriesNext(t *testing.T) {
 }
 
 func TestNextIDIsThreadSafe(t *testing.T) {
-	var calls int32
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
 	wg := sync.WaitGroup{}
@@ -510,15 +509,14 @@ func TestNextIDIsThreadSafe(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		go func() {
 			defer wg.Done()
-			_, _ = cron.AddFunc("*/5 * * * * *", func() { atomic.AddInt32(&calls, 1) })
+			_, _ = cron.AddFunc("* * * * * *", func() {})
 		}()
 	}
 	wg.Wait()
 	m := make(map[EntryID]bool)
 	for _, e := range cron.entries {
 		if _, ok := m[e.ID]; ok {
-			t.Fail()
-			return
+			t.Fatal()
 		}
 		m[e.ID] = true
 	}

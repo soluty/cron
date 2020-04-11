@@ -346,21 +346,20 @@ func TestJob(t *testing.T) {
 	var calls int32
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
-	_, _ = cron.AddJob("0 0 0 30 Feb ?", testJob{&calls, "job0"})
-	_, _ = cron.AddJob("0 0 0 1 1 ?", testJob{&calls, "job1"})
-	_, _ = cron.AddJob("* * * * * ?", testJob{&calls, "job2"})
-	_, _ = cron.AddJob("1 0 0 1 1 ?", testJob{&calls, "job3"})
-	cron.Schedule(Every(5*time.Second+5*time.Nanosecond), testJob{&calls, "job4"})
-	cron.Schedule(Every(5*time.Minute), testJob{&calls, "job5"})
+	_, _ = cron.AddJob("0 0 0 30 Feb ?", testJob{&calls, "job5"})
+	_, _ = cron.AddJob("0 0 0 1 1 ?", testJob{&calls, "job3"})
+	_, _ = cron.AddJob("* * * * * ?", testJob{&calls, "job0"})
+	_, _ = cron.AddJob("1 0 0 1 1 ?", testJob{&calls, "job4"})
+	cron.Schedule(Every(5*time.Second+5*time.Nanosecond), testJob{&calls, "job1"})
+	cron.Schedule(Every(5*time.Minute), testJob{&calls, "job2"})
 	cron.Start()
 	defer cron.Stop()
 	cycle(cron)
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 	// Ensure the entries are in the right order.
-	expecteds := []string{"job2", "job4", "job5", "job1", "job3", "job0"}
 	for i, entry := range cron.Entries() {
-		assert.Equal(t, expecteds[i], entry.Job.(testJob).name)
+		assert.Equal(t, fmt.Sprintf("job%d", i), entry.Job.(testJob).name)
 	}
 }
 

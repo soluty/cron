@@ -172,9 +172,7 @@ func (c *Cron) Stop() context.Context {
 }
 
 func (c *Cron) runWithRecovery(j Job) {
-	defer func() {
-		recover()
-	}()
+	defer func() { recover() }()
 	j.Run()
 }
 

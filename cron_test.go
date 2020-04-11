@@ -22,15 +22,6 @@ func advanceAndCycle(cron *Cron, d time.Duration) {
 	cycle(cron)
 }
 
-func wait(wg *sync.WaitGroup) <-chan struct{} {
-	ch := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-	return ch
-}
-
 func recvWithTimeout(t *testing.T, ch <-chan struct{}, msg ...string) {
 	select {
 	case <-time.After(time.Second):
@@ -298,29 +289,18 @@ func TestInvalidJobSpec(t *testing.T) {
 
 // Test blocking run method behaves as Start()
 func TestBlockingRun(t *testing.T) {
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
+	var calls int32
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
-	_, _ = cron.AddFunc("* * * * * ?", func() { wg.Done() })
-
-	var unblockChan = make(chan struct{})
-
+	_, _ = cron.AddFunc("* * * * * ?", func() { atomic.AddInt32(&calls, 1) })
 	go func() {
 		cron.Run()
-		close(unblockChan)
+		atomic.AddInt32(&calls, 1)
 	}()
 	defer cron.Stop()
 	cycle(cron)
 	advanceAndCycle(cron, time.Second)
-	select {
-	case <-time.After(time.Second):
-		t.Error("expected job fires")
-	case <-unblockChan:
-		t.Error("expected that Run() blocks")
-	case <-wait(wg):
-	}
+	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 }
 
 // Test that double-running Run is a no-op

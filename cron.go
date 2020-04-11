@@ -197,7 +197,6 @@ func (c *Cron) run() {
 	c.setEntriesNext()
 	for {
 		// Determine the next entry to run.
-		c.sortEntries()
 		delay := c.getNextDelay()
 		select {
 		case <-c.clock.After(delay):
@@ -246,6 +245,7 @@ func (c *Cron) runDueEntries() {
 func (c *Cron) getNextDelay() time.Duration {
 	c.entriesMu.RLock()
 	defer c.entriesMu.RUnlock()
+	c.sortEntries()
 	if len(c.entries) == 0 || c.entries[0].Next.IsZero() {
 		return 100000 * time.Hour // If there are no entries yet, just sleep - it still handles new entries and stop requests.
 	}
@@ -262,8 +262,6 @@ func (c *Cron) setEntriesNext() {
 }
 
 func (c *Cron) sortEntries() {
-	c.entriesMu.Lock()
-	defer c.entriesMu.Unlock()
 	sort.Slice(c.entries, func(i, j int) bool {
 		if c.entries[i].Next.IsZero() {
 			return false

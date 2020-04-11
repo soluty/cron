@@ -653,3 +653,26 @@ func TestSetEntriesNext(t *testing.T) {
 	cycle(cron)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 }
+
+func TestNextIDIsThreadSafe(t *testing.T) {
+	var calls int32
+	clock := clockwork.NewFakeClock()
+	cron := New(WithClock(clock))
+	wg := sync.WaitGroup{}
+	wg.Add(1000)
+	for i := 0; i < 1000; i++ {
+		go func() {
+			defer wg.Done()
+			_, _ = cron.AddFunc("*/5 * * * * *", func() { atomic.AddInt32(&calls, 1) })
+		}()
+	}
+	wg.Wait()
+	m := make(map[EntryID]bool)
+	for _, e := range cron.entries {
+		if _, ok := m[e.ID]; ok {
+			t.Fail()
+			return
+		}
+		m[e.ID] = true
+	}
+}

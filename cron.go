@@ -18,7 +18,7 @@ import (
 // be inspected while running.
 type Cron struct {
 	clock     clockwork.Clock
-	nextID    EntryID
+	nextID    int32 // atomic value
 	entries   []*Entry
 	entriesMu sync.RWMutex
 	ctx       context.Context
@@ -31,7 +31,7 @@ type Cron struct {
 	jobWaiter sync.WaitGroup
 }
 
-type EntryID int
+type EntryID int32
 
 // Job is an interface for submitted cron jobs.
 type Job interface {
@@ -112,9 +112,9 @@ func (c *Cron) AddJob(spec string, cmd Job) (EntryID, error) {
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
 func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
-	c.nextID++
+	newID := atomic.AddInt32(&c.nextID, 1)
 	entry := &Entry{
-		ID:       c.nextID,
+		ID:       EntryID(newID),
 		Schedule: schedule,
 		Job:      cmd,
 	}

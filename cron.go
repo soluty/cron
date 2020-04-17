@@ -57,6 +57,8 @@ type Entry struct {
 
 	// The Job to run.
 	Job Job
+
+	Label string
 }
 
 // New returns a new Cron job runner, in the Local time zone.
@@ -90,26 +92,27 @@ type FuncJob func()
 func (f FuncJob) Run() { f() }
 
 // AddFunc adds a func to the Cron to be run on the given schedule.
-func (c *Cron) AddFunc(spec string, cmd func()) (EntryID, error) {
-	return c.AddJob(spec, FuncJob(cmd))
+func (c *Cron) AddFunc(spec string, cmd func(), label string) (EntryID, error) {
+	return c.AddJob(spec, FuncJob(cmd), label)
 }
 
 // AddJob adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) AddJob(spec string, cmd Job) (EntryID, error) {
+func (c *Cron) AddJob(spec string, cmd Job, label string) (EntryID, error) {
 	schedule, err := Parse(spec)
 	if err != nil {
 		return 0, err
 	}
-	return c.Schedule(schedule, cmd), nil
+	return c.Schedule(schedule, cmd, label), nil
 }
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
+func (c *Cron) Schedule(schedule Schedule, cmd Job, label string) EntryID {
 	newID := atomic.AddInt32(&c.nextID, 1)
 	entry := &Entry{
 		ID:       EntryID(newID),
 		Schedule: schedule,
 		Job:      cmd,
+		Label:    label,
 	}
 	entry.Next = entry.Schedule.Next(c.now())
 	c.appendEntry(entry)
@@ -123,13 +126,13 @@ func (c *Cron) Entries() []Entry {
 }
 
 // Entry returns a snapshot of the given entry, or nil if it couldn't be found.
-func (c *Cron) Entry(id EntryID) Entry {
+func (c *Cron) Entry(id EntryID) (out Entry) {
 	for _, entry := range c.Entries() {
 		if id == entry.ID {
 			return entry
 		}
 	}
-	return Entry{}
+	return
 }
 
 // Remove an entry from being run in the future.

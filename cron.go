@@ -22,6 +22,7 @@ type Cron struct {
 	cancel    context.CancelFunc
 	update    chan struct{}
 	running   int32 // atomic value
+	locMu     sync.Mutex
 	location  *time.Location
 	jobWaiter sync.WaitGroup
 }
@@ -287,12 +288,16 @@ func (c *Cron) startJob(j Job) {
 
 // Location gets the time zone location
 func (c *Cron) Location() *time.Location {
+	c.locMu.Lock()
+	defer c.locMu.Unlock()
 	return c.location
 }
 
 // SetLocation ...
 func (c *Cron) SetLocation(newLoc *time.Location) {
+	c.locMu.Lock()
 	c.location = newLoc
+	c.locMu.Unlock()
 	c.setEntriesNext()
 	c.entriesUpdated()
 }

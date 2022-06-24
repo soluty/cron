@@ -352,12 +352,14 @@ func TestChangeLocationWhileRunning(t *testing.T) {
 	defer cron.Stop()
 	_, _ = cron.AddFunc("* * * * * ?", func() {}, "")
 	_, _ = cron.AddFunc("0 0 1 * * ?", func() {}, "")
-	assert.Equal(t, clock.Now().Add(time.Second).In(time.UTC), cron.entries[0].Next)
-	assert.Equal(t, time.Date(1984, time.April, 4, 1, 0, 0, 0, time.UTC), cron.entries[1].Next)
+	entries := cron.Entries()
+	assert.Equal(t, clock.Now().Add(time.Second).In(time.UTC), entries[0].Next)
+	assert.Equal(t, time.Date(1984, time.April, 4, 1, 0, 0, 0, time.UTC), entries[1].Next)
 	cron.SetLocation(newLoc)
-	assert.Equal(t, clock.Now().Add(time.Second).In(newLoc), cron.entries[0].Next)
-	assert.Equal(t, time.Date(1984, time.April, 4, 2, 0, 0, 0, time.UTC).In(newLoc), cron.entries[1].Next)
-	assert.Equal(t, time.Date(1984, time.April, 4, 1, 0, 0, 0, newLoc), cron.entries[1].Next)
+	entries = cron.Entries()
+	assert.Equal(t, clock.Now().Add(time.Second).In(newLoc), entries[0].Next)
+	assert.Equal(t, time.Date(1984, time.April, 4, 2, 0, 0, 0, time.UTC).In(newLoc), entries[1].Next)
+	assert.Equal(t, time.Date(1984, time.April, 4, 1, 0, 0, 0, newLoc), entries[1].Next)
 }
 
 // Simple test using Runnables.

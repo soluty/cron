@@ -4,3 +4,8 @@
 # cron
 
 Documentation here: https://godoc.org/github.com/robfig/cron
+
+```go
+go test -v ./...
+go clean -testcache && go test -race ./...
+```

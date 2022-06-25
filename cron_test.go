@@ -46,11 +46,9 @@ func TestFuncPanicRecovery(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	var nbCall int32
-	ch := make(chan struct{})
-	_, _ = cron.AddFunc("* * * * *", func() { atomic.AddInt32(&nbCall, 1); close(ch) }, "")
+	_, _ = cron.AddFunc("* * * * *", func() { atomic.AddInt32(&nbCall, 1) }, "")
 	cycle(cron)
 	advanceAndCycle(cron, time.Second)
-	<-ch
 	assert.Equal(t, int32(1), atomic.LoadInt32(&nbCall))
 }
 
@@ -59,12 +57,10 @@ func TestFuncPanicRecovery1(t *testing.T) {
 	cron := New(WithClock(clock))
 	cron.Start()
 	defer cron.Stop()
-	ch := make(chan struct{})
 	var nbCall int32
-	_, _ = cron.AddFunc("* * * * * *", func() { atomic.AddInt32(&nbCall, 1); close(ch) }, "")
+	_, _ = cron.AddFunc("* * * * * *", func() { atomic.AddInt32(&nbCall, 1) }, "")
 	cycle(cron)
 	advanceAndCycle(cron, 1300*time.Millisecond)
-	<-ch
 	assert.Equal(t, int32(1), atomic.LoadInt32(&nbCall))
 }
 

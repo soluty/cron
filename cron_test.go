@@ -14,11 +14,15 @@ import (
 // run one logic cycle
 func cycle(cron *Cron) {
 	cron.entriesUpdated()
-	time.Sleep(5 * time.Millisecond)
 }
 
 func advanceAndCycle(cron *Cron, d time.Duration) {
-	cron.clock.(clockwork.FakeClock).Advance(d)
+	advanceAndCycleNoJobWait(cron, d)
+	cron.waitJobs()
+}
+
+func advanceAndCycleNoJobWait(cron *Cron, d time.Duration) {
+	cron.advanceFakeClock(d)
 	cycle(cron)
 }
 
@@ -42,9 +46,11 @@ func TestFuncPanicRecovery(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	var nbCall int32
-	_, _ = cron.AddFunc("* * * * *", func() { atomic.AddInt32(&nbCall, 1) }, "")
+	ch := make(chan struct{})
+	_, _ = cron.AddFunc("* * * * *", func() { atomic.AddInt32(&nbCall, 1); close(ch) }, "")
 	cycle(cron)
 	advanceAndCycle(cron, time.Second)
+	<-ch
 	assert.Equal(t, int32(1), atomic.LoadInt32(&nbCall))
 }
 
@@ -53,10 +59,12 @@ func TestFuncPanicRecovery1(t *testing.T) {
 	cron := New(WithClock(clock))
 	cron.Start()
 	defer cron.Stop()
+	ch := make(chan struct{})
 	var nbCall int32
-	_, _ = cron.AddFunc("* * * * * *", func() { atomic.AddInt32(&nbCall, 1) }, "")
+	_, _ = cron.AddFunc("* * * * * *", func() { atomic.AddInt32(&nbCall, 1); close(ch) }, "")
 	cycle(cron)
-	advanceAndCycle(cron, time.Second)
+	advanceAndCycle(cron, 1300*time.Millisecond)
+	<-ch
 	assert.Equal(t, int32(1), atomic.LoadInt32(&nbCall))
 }
 
@@ -65,7 +73,7 @@ func TestFuncPanicRecovery2(t *testing.T) {
 	cron := New(WithClock(clock))
 	cron.Start()
 	defer cron.Stop()
-	ch := make(chan string)
+	ch := make(chan string, 1)
 	_, _ = cron.AddFunc("* * * * * *", func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -316,10 +324,18 @@ func TestBlockingRun(t *testing.T) {
 		cron.Run()
 		atomic.AddInt32(&calls, 1)
 	}()
-	defer cron.Stop()
+
+	// Spinlock wait until cron is running
+	for {
+		if cron.isRunning() {
+			break
+		}
+	}
+
 	cycle(cron)
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
+	<-cron.Stop().Done()
 }
 
 // Test that double-running Run is a no-op
@@ -442,7 +458,7 @@ func TestScheduleAfterRemoval(t *testing.T) {
 			atomic.AddInt32(&calls, 1)
 		case 1:
 			atomic.AddInt32(&calls, 1)
-			advanceAndCycle(cron, 750*time.Millisecond)
+			advanceAndCycleNoJobWait(cron, 750*time.Millisecond)
 			cron.Remove(hourJob)
 			cycle(cron)
 		case 2:

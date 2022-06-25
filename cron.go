@@ -14,13 +14,14 @@ import (
 // specified by the schedule. It may be started, stopped, and the entries may
 // be inspected while running.
 type Cron struct {
+	clockMu   sync.Mutex
 	clock     clockwork.Clock
 	nextID    int32 // atomic value
 	entries   []*Entry
 	entriesMu sync.RWMutex
 	ctx       context.Context
 	cancel    context.CancelFunc
-	update    chan struct{}
+	update    chan context.CancelFunc
 	running   int32 // atomic value
 	locMu     sync.Mutex
 	location  *time.Location
@@ -71,7 +72,7 @@ func New(opts ...Option) *Cron {
 		entries:  nil,
 		ctx:      ctx,
 		cancel:   cancel,
-		update:   make(chan struct{}),
+		update:   make(chan context.CancelFunc),
 		location: clock.Location(),
 	}
 	for _, opt := range opts {
@@ -85,6 +86,9 @@ func (c *Cron) startRunning() bool {
 }
 func (c *Cron) stopRunning() bool {
 	return atomic.CompareAndSwapInt32(&c.running, 1, 0)
+}
+func (c *Cron) isRunning() bool {
+	return atomic.LoadInt32(&c.running) == 1
 }
 
 // A wrapper that turns a func() into a cron.Job
@@ -117,7 +121,9 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job, label string) EntryID {
 	}
 	entry.Next = entry.Schedule.Next(c.now())
 	c.appendEntry(entry)
-	c.entriesUpdated()
+	if c.isRunning() {
+		c.entriesUpdated()
+	}
 	return entry.ID
 }
 
@@ -177,6 +183,21 @@ func (c *Cron) runWithRecovery(j Job) {
 	j.Run()
 }
 
+func (c *Cron) afterCh(delay time.Duration) (out <-chan time.Time) {
+	c.clockMu.Lock()
+	out = c.clock.After(delay)
+	c.clockMu.Unlock()
+	return
+}
+
+func (c *Cron) advanceFakeClock(d time.Duration) {
+	c.clockMu.Lock()
+	defer c.clockMu.Unlock()
+	if fc, ok := c.clock.(clockwork.FakeClock); ok {
+		fc.Advance(d)
+	}
+}
+
 // Run the scheduler. this is private just due to the need to synchronize
 // access to the 'running' state variable.
 func (c *Cron) run() {
@@ -186,9 +207,12 @@ func (c *Cron) run() {
 		// Determine the next entry to run.
 		delay := c.getNextDelay()
 		select {
-		case <-c.clock.After(delay):
+		case <-c.afterCh(delay):
 			c.runDueEntries()
-		case <-c.update:
+		case updated := <-c.update:
+			c.getNextDelay()
+			c.runDueEntries()
+			updated()
 		case <-c.ctx.Done():
 			return
 		}
@@ -197,9 +221,20 @@ func (c *Cron) run() {
 
 // trigger an update of the entries in the run loop
 func (c *Cron) entriesUpdated() {
+	// If the cron is not running, no need to notify the main loop about updating entries
+	if !c.isRunning() {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	// Wait until the main loop pickup our update task (or cron exiting)
 	select {
-	case c.update <- struct{}{}:
-	default:
+	case c.update <- cancel:
+	case <-c.ctx.Done():
+	}
+	// Wait until "runDueEntries" is done running (or cron exiting)
+	select {
+	case <-ctx.Done():
+	case <-c.ctx.Done():
 	}
 }
 
@@ -284,6 +319,19 @@ func (c *Cron) startJob(j Job) {
 		defer c.jobWaiter.Done()
 		c.runWithRecovery(j)
 	}()
+}
+
+// Waits until all processing jobs are done running (for tests)
+func (c *Cron) waitJobs() {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		c.jobWaiter.Wait()
+		cancel()
+	}()
+	select {
+	case <-ctx.Done():
+	case <-c.ctx.Done():
+	}
 }
 
 // Location gets the time zone location

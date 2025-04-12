@@ -9,3 +9,8 @@ cover:
 	done
 	@gocovmerge ./coverage/*.cover > cover.out
 	@go tool cover -html=cover.out
+
+race:
+	@bash -c 'for i in {1..100}; do \
+		go test -race; \
+	done'

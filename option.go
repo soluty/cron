@@ -1,24 +1,39 @@
 package cron
 
 import (
+	"context"
 	"time"
 
 	"github.com/alaingilbert/clockwork"
 )
 
+// Config ...
+type Config struct {
+	Ctx      context.Context
+	Location *time.Location
+	Clock    clockwork.Clock
+}
+
 // Option represents a modification to the default behavior of a Cron.
-type Option func(*Cron)
+type Option func(*Config)
 
 // WithLocation overrides the timezone of the cron instance.
 func WithLocation(loc *time.Location) Option {
-	return func(c *Cron) {
-		c.location = loc
+	return func(c *Config) {
+		c.Location = loc
 	}
 }
 
 // WithClock ...
 func WithClock(clock clockwork.Clock) Option {
-	return func(c *Cron) {
-		c.clock = clock
+	return func(c *Config) {
+		c.Clock = clock
+	}
+}
+
+// WithContext ...
+func WithContext(ctx context.Context) Option {
+	return func(c *Config) {
+		c.Ctx = ctx
 	}
 }

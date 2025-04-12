@@ -8,6 +8,8 @@ import (
 )
 
 func TestWithLocation(t *testing.T) {
-	c := New(WithLocation(time.UTC))
-	assert.Equal(t, time.UTC, c.location)
+	c1 := New()
+	assert.Equal(t, time.Local, c1.Location())
+	c2 := New(WithLocation(time.UTC))
+	assert.Equal(t, time.UTC, c2.Location())
 }

@@ -307,9 +307,11 @@ func TestBlockingRun(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
 	_, _ = cron.AddJob("* * * * * ?", baseJob{&calls}, "")
+	ch := make(chan struct{})
 	go func() {
 		cron.Run()
 		calls.Add(1)
+		close(ch)
 	}()
 	// Spinlock wait until cron is running
 	for !cron.isRunning() {
@@ -317,6 +319,8 @@ func TestBlockingRun(t *testing.T) {
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), calls.Load())
 	cron.Stop()
+	<-ch
+	assert.Equal(t, int32(2), calls.Load())
 }
 
 // Test that double-running is a no-op

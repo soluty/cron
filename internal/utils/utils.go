@@ -78,3 +78,29 @@ func CastInto[T any](origin any, into *T) bool {
 	}
 	return false
 }
+
+// InsertionSortPartial insertion Sort is particularly fast when:
+//   - The slice is already sorted or nearly sorted.
+//   - Only a small number of elements (especially near the start) are out of place.
+func InsertionSortPartial[T any](data []T, n int, less func(a, b T) bool) {
+	// Sort first n elements
+	for i := 1; i < n; i++ {
+		key := data[i]
+		j := i - 1
+		for j >= 0 && less(key, data[j]) {
+			data[j+1] = data[j]
+			j--
+		}
+		data[j+1] = key
+	}
+	// Now, push those first n elements into the rest of the (already sorted) slice
+	for i := 0; i < n; i++ {
+		key := data[i]
+		j := i
+		for j < len(data)-1 && less(data[j+1], key) {
+			data[j] = data[j+1]
+			j++
+		}
+		data[j] = key
+	}
+}

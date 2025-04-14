@@ -250,6 +250,7 @@ func (c *Cron) runDueEntries() {
 	if c.isRunning() {
 		now := c.now()
 		c.entries.With(func(entries *[]*Entry) {
+			var toSortCount int
 			for _, entry := range *entries {
 				if entry.Next.After(now) || entry.Next.IsZero() {
 					break
@@ -257,8 +258,9 @@ func (c *Cron) runDueEntries() {
 				c.startJob(entry.Job)
 				entry.Prev = entry.Next
 				entry.Next = entry.Schedule.Next(now) // Compute new Next property for the Entry
+				toSortCount++
 			}
-			sortEntries(entries)
+			utils.InsertionSortPartial(*entries, toSortCount, less)
 		})
 	}
 }

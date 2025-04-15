@@ -224,7 +224,7 @@ func (c *Cron) Entries() (out []Entry) {
 // Entry returns a snapshot of the given entry, or nil if it couldn't be found.
 func (c *Cron) Entry(id EntryID) (out Entry, err error) {
 	for _, entry := range c.Entries() {
-		if id == entry.ID {
+		if entry.ID == id {
 			return entry, nil
 		}
 	}

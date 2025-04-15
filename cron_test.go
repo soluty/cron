@@ -69,6 +69,21 @@ func TestJobPanicRecovery(t *testing.T) {
 	advanceAndCycle(cron, time.Second)
 }
 
+func TestOnceJob(t *testing.T) {
+	var calls atomic.Int32
+	clock := clockwork.NewFakeClock()
+	cron := New(WithClock(clock))
+	cron.Start()
+	_, _ = cron.AddJob("* * * * * *", Once(baseJob{&calls}), "")
+	_, _ = cron.AddJob("* * * * * *", baseJob{&calls}, "")
+	advanceAndCycle(cron, time.Second)
+	assert.Equal(t, int32(2), calls.Load())
+	advanceAndCycle(cron, time.Second)
+	assert.Equal(t, int32(3), calls.Load())
+	advanceAndCycle(cron, time.Second)
+	assert.Equal(t, int32(4), calls.Load())
+}
+
 // Just show off that we can test crons that runs once a month
 func TestOnceAMonth(t *testing.T) {
 	var calls atomic.Int32

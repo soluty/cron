@@ -40,6 +40,12 @@ type Job interface {
 	Run(context.Context)
 }
 
+type OnceJob struct{ Job }
+
+func (j *OnceJob) Run(ctx context.Context) { j.Job.Run(ctx) }
+
+func Once(job Job) *OnceJob { return &OnceJob{job} }
+
 // The Schedule describes a job's duty cycle.
 type Schedule interface {
 	// Next return the next activation time, later than the given time.
@@ -259,9 +265,13 @@ func (c *Cron) runDueEntries() {
 					break
 				}
 				c.startJob(entry.Job)
-				entry.Prev = entry.Next
-				entry.Next = entry.Schedule.Next(now) // Compute new Next property for the Entry
-				toSortCount++
+				if _, ok := entry.Job.(*OnceJob); ok {
+					removeEntry(entries, entry.ID)
+				} else {
+					entry.Prev = entry.Next
+					entry.Next = entry.Schedule.Next(now) // Compute new Next property for the Entry
+					toSortCount++
+				}
 			}
 			utils.InsertionSortPartial(*entries, toSortCount, less)
 		})
@@ -284,13 +294,17 @@ func sortEntries(entries *[]*Entry) {
 
 func (c *Cron) removeEntry(id EntryID) {
 	c.entries.With(func(entries *[]*Entry) {
-		for i := len(*entries) - 1; i >= 0; i-- {
-			if (*entries)[i].ID == id {
-				*entries = slices.Delete(*entries, i, i+1)
-				break
-			}
-		}
+		removeEntry(entries, id)
 	})
+}
+
+func removeEntry(entries *[]*Entry, id EntryID) {
+	for i, entry := range *entries {
+		if entry.ID == id {
+			*entries = slices.Delete(*entries, i, i+1)
+			break
+		}
+	}
 }
 
 // startJob runs the given job in a new goroutine.

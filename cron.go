@@ -46,34 +46,34 @@ type Job interface {
 	Run(context.Context) error
 }
 
-type JobWrapper func(Job) Job
+type JobWrapper func(IntoJob) Job
 
 type OnceJob struct{ Job }
 
 func (j *OnceJob) Run(ctx context.Context) error { return j.Job.Run(ctx) }
 
 // Once creates a Job that will remove itself from the entries once executed
-func Once(job Job) Job { return &OnceJob{job} }
+func Once(job IntoJob) Job { return &OnceJob{castIntoJob(job)} }
 
 // SkipIfStillRunning skips an invocation of the Job if a previous invocation is still running.
-func SkipIfStillRunning(j Job) Job {
+func SkipIfStillRunning(j IntoJob) Job {
 	var running atomic.Bool
 	return FuncJob(func(ctx context.Context) (err error) {
 		if running.CompareAndSwap(false, true) {
 			defer running.Store(false)
-			err = j.Run(ctx)
+			err = castIntoJob(j).Run(ctx)
 		}
 		return
 	})
 }
 
 // TimeoutWrapper automatically cancel the job context after a given duration
-func TimeoutWrapper(duration time.Duration) func(j Job) Job {
-	return func(j Job) Job {
+func TimeoutWrapper(duration time.Duration) func(j IntoJob) Job {
+	return func(j IntoJob) Job {
 		return FuncJob(func(ctx context.Context) error {
 			timeoutCtx, cancel := context.WithTimeout(ctx, duration)
 			defer cancel()
-			return j.Run(timeoutCtx)
+			return castIntoJob(j).Run(timeoutCtx)
 		})
 	}
 }
@@ -81,8 +81,7 @@ func TimeoutWrapper(duration time.Duration) func(j Job) Job {
 // WithTimeout ...
 // `_, _ = cron.AddJob("* * * * * *", cron.WithTimeout(time.Second, func(ctx context.Context) { ... }))`
 func WithTimeout(d time.Duration, job IntoJob) Job {
-	j := castIntoJob(job)
-	return TimeoutWrapper(d)(j)
+	return TimeoutWrapper(d)(job)
 }
 
 type IntoJob any

@@ -35,6 +35,9 @@ type EntryID int32
 // ErrEntryNotFound ...
 var ErrEntryNotFound = errors.New("entry not found")
 
+// ErrUnsupportedJobType ...
+var ErrUnsupportedJobType = errors.New("unsupported job type")
+
 // Job is an interface for submitted cron jobs.
 type Job interface {
 	Run(context.Context)
@@ -61,12 +64,37 @@ func SkipIfStillRunning(j Job) Job {
 }
 
 // TimeoutWrapper automatically cancel the job context after a given duration
-func TimeoutWrapper(duration time.Duration, j Job) Job {
-	return FuncJob(func(ctx context.Context) {
-		timeoutCtx, cancel := context.WithTimeout(ctx, duration)
-		defer cancel()
-		j.Run(timeoutCtx)
-	})
+func TimeoutWrapper(duration time.Duration) func(j Job) Job {
+	return func(j Job) Job {
+		return FuncJob(func(ctx context.Context) {
+			timeoutCtx, cancel := context.WithTimeout(ctx, duration)
+			defer cancel()
+			j.Run(timeoutCtx)
+		})
+	}
+}
+
+// WithTimeout ...
+// `_, _ = cron.AddJob("* * * * * *", cron.WithTimeout(time.Second, func(ctx context.Context) { ... }))`
+func WithTimeout(d time.Duration, job IntoJob) Job {
+	j, err := castIntoJob(job)
+	if err != nil {
+		panic(err)
+	}
+	return TimeoutWrapper(d)(j)
+}
+
+type IntoJob any
+
+func castIntoJob(v IntoJob) (Job, error) {
+	switch j := v.(type) {
+	case func(ctx context.Context):
+		return FuncJob(j), nil
+	case Job:
+		return j, nil
+	default:
+		return nil, ErrUnsupportedJobType
+	}
 }
 
 // Chain `Chain(j, w1, w2, w3)` -> `w3(w2(w1(j)))`

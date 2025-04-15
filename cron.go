@@ -305,12 +305,8 @@ func (c *Cron) setEntriesNext() {
 		for _, entry := range *entries {
 			entry.Next = entry.Schedule.Next(now)
 		}
-		sortEntries(entries)
+		sort.Slice(*entries, func(i, j int) bool { return less((*entries)[i], (*entries)[j]) })
 	})
-}
-
-func sortEntries(entries *[]*Entry) {
-	sort.Slice(*entries, func(i, j int) bool { return less((*entries)[i], (*entries)[j]) })
 }
 
 func (c *Cron) removeEntry(id EntryID) {

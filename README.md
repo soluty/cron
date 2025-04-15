@@ -1,9 +1,12 @@
-[![GoDoc](http://godoc.org/github.com/robfig/cron?status.png)](http://godoc.org/github.com/robfig/cron) 
-[![Build Status](https://travis-ci.org/robfig/cron.svg?branch=master)](https://travis-ci.org/robfig/cron)
+Fork of https://godoc.org/github.com/robfig/cron  
 
-# cron
-
-Documentation here: https://godoc.org/github.com/robfig/cron
+Changes:  
+Jobs has a context  
+Jobs recover panic by default  
+Can have a job that only run once using cron.Once  
+Can change the *time.Location while running  
+Do not sort all entries at evey iteration  
+Tests runs in under a second (instead of over a minute)  
 
 ```go
 go test -v ./...

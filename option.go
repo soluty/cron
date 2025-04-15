@@ -2,6 +2,7 @@ package cron
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/alaingilbert/clockwork"
@@ -12,6 +13,7 @@ type Config struct {
 	Ctx      context.Context
 	Location *time.Location
 	Clock    clockwork.Clock
+	Logger   *log.Logger
 }
 
 // Option represents a modification to the default behavior of a Cron.
@@ -35,5 +37,12 @@ func WithClock(clock clockwork.Clock) Option {
 func WithContext(ctx context.Context) Option {
 	return func(c *Config) {
 		c.Ctx = ctx
+	}
+}
+
+// WithLogger ...
+func WithLogger(logger *log.Logger) Option {
+	return func(c *Config) {
+		c.Logger = logger
 	}
 }

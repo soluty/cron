@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/alaingilbert/cron/internal/mtx"
 	"github.com/alaingilbert/cron/internal/utils"
+	"log"
 	"slices"
 	"sort"
 	"sync"
@@ -28,6 +29,7 @@ type Cron struct {
 	update           chan context.CancelFunc   // Triggers update in the scheduler loop
 	running          atomic.Bool               // Indicates if the scheduler is currently running
 	location         mtx.RWMtx[*time.Location] // Thread-safe time zone location
+	logger           *log.Logger               // Logger
 }
 
 type EntryID int32
@@ -149,6 +151,7 @@ func New(opts ...Option) *Cron {
 	clock := utils.Or(cfg.Clock, clockwork.NewRealClock())
 	location := utils.Or(cfg.Location, clock.Location())
 	parentCtx := utils.Or(cfg.Ctx, context.Background())
+	logger := utils.Or(cfg.Logger, log.New(os.Stderr, "cron", log.LstdFlags))
 	ctx, cancel := context.WithCancel(parentCtx)
 	return &Cron{
 		cond:     sync.Cond{L: &sync.Mutex{}},
@@ -157,6 +160,7 @@ func New(opts ...Option) *Cron {
 		cancel:   cancel,
 		update:   make(chan context.CancelFunc),
 		location: mtx.NewRWMtx(location),
+		logger:   logger,
 	}
 }
 

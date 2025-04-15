@@ -111,11 +111,12 @@ func castIntoJob(v IntoJob) Job {
 }
 
 // Chain `Chain(j, w1, w2, w3)` -> `w3(w2(w1(j)))`
-func Chain(j Job, wrappers ...JobWrapper) Job {
+func Chain(j IntoJob, wrappers ...JobWrapper) Job {
+	job := castIntoJob(j)
 	for _, w := range wrappers {
-		j = w(j)
+		job = w(job)
 	}
-	return j
+	return job
 }
 
 // The Schedule describes a job's duty cycle.

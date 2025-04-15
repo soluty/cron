@@ -87,9 +87,17 @@ func main() {
 	// Anything that implements the Job interface can be used for job
 	_, _ = c.AddJob("* * * * * *", SomeJob{})
 
-	// When using cron.Once, the job will remove itself from the cron entries after being executed once
+	// When using cron.Once, the job will remove itself from the cron entries
+	// after being executed once
 	_, _ = c.AddJob("* * * * * *", cron.Once(func() {
 		fmt.Println("Will only be executed once")
+	}))
+
+	// cron.SkipIfStillRunning will ensure that the job is skipped if a previous
+	// invocation is still running
+	_, _ = c.AddJob("* * * * * *", cron.SkipIfStillRunning(func() {
+		fmt.Println("Slow job")
+		time.Sleep(3 * time.Second)
 	}))
 
 	c.Run()

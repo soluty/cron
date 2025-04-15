@@ -40,6 +40,8 @@ type Job interface {
 	Run(context.Context)
 }
 
+type JobWrapper func(Job) Job
+
 type OnceJob struct{ Job }
 
 func (j *OnceJob) Run(ctx context.Context) { j.Job.Run(ctx) }

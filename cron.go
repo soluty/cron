@@ -352,18 +352,22 @@ func (c *Cron) runDueEntries() {
 		now := c.now()
 		c.entries.With(func(entries *[]*Entry) {
 			var toSortCount int
+			toRemove := make([]EntryID, 0)
 			for _, entry := range *entries {
 				if entry.Next.After(now) || entry.Next.IsZero() {
 					break
 				}
 				c.startJob(entry)
 				if _, ok := entry.Job.(*OnceJob); ok {
-					removeEntry(entries, entry.ID)
+					toRemove = append(toRemove, entry.ID)
 				} else {
 					entry.Prev = entry.Next
 					entry.Next = entry.Schedule.Next(now) // Compute new Next property for the Entry
 					toSortCount++
 				}
+			}
+			for _, id := range toRemove {
+				removeEntry(entries, id)
 			}
 			utils.InsertionSortPartial(*entries, toSortCount, less)
 		})

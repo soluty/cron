@@ -3,6 +3,8 @@ package cron
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -63,7 +65,7 @@ func TestFuncPanicRecovery(t *testing.T) {
 
 func TestJobPanicRecovery(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	cron := New(WithClock(clock))
+	cron := New(WithClock(clock), WithLogger(log.New(io.Discard, "", log.LstdFlags)))
 	cron.Start()
 	_, _ = cron.AddJob("* * * * * ?", PanicJob{})
 	advanceAndCycle(cron, time.Second)

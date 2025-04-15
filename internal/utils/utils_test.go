@@ -146,3 +146,8 @@ func BenchmarkSortSlice(b *testing.B) {
 		sort.Slice(arr, func(i, j int) bool { return arr[i] < arr[j] })
 	}
 }
+
+func TestSome(t *testing.T) {
+	assert.True(t, Some([]int{1, 2, 3}, func(el int) bool { return el == 1 }))
+	assert.False(t, Some([]int{1, 2, 3}, func(el int) bool { return el == 4 }))
+}

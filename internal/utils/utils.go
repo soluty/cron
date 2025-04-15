@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"iter"
 	"math/rand/v2"
 	"reflect"
 	"time"
@@ -135,4 +136,54 @@ func Random(min, max int64) int64 {
 func RandDuration(min, max time.Duration) time.Duration {
 	n := Random(min.Nanoseconds(), max.Nanoseconds())
 	return time.Duration(n)
+}
+
+func SliceSeq[T any](s []T) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for _, v := range s {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Find looks through each value in the list, returning the first one that passes a truth test (predicate),
+// or nil if no value passes the test.
+// The function returns as soon as it finds an acceptable element, and doesn't traverse the entire list
+func Find[T any](arr []T, predicate func(T) bool) (out *T) {
+	return FindIter(SliceSeq(arr), predicate)
+}
+
+// FindIter ...
+func FindIter[T any](it iter.Seq[T], predicate func(T) bool) (out *T) {
+	return First(FindIdxIter(it, predicate))
+}
+
+// FindIdx ...
+func FindIdx[T any](arr []T, predicate func(T) bool) (*T, int) {
+	return FindIdxIter(SliceSeq(arr), predicate)
+}
+
+// FindIdxIter ...
+func FindIdxIter[T any](it iter.Seq[T], predicate func(T) bool) (*T, int) {
+	var i int
+	for el := range it {
+		if predicate(el) {
+			return &el, i
+		}
+		i++
+	}
+	return nil, -1
+}
+
+// Some returns true if any of the values in the list pass the predicate truth test.
+// Short-circuits and stops traversing the list if a true element is found.
+func Some[T any](arr []T, predicate func(T) bool) bool {
+	return SomeIter(SliceSeq(arr), predicate)
+}
+
+// SomeIter ...
+func SomeIter[T any](it iter.Seq[T], predicate func(T) bool) bool {
+	return FindIter(it, predicate) != nil
 }

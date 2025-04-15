@@ -46,6 +46,17 @@ func (j *OnceJob) Run(ctx context.Context) { j.Job.Run(ctx) }
 
 func Once(job Job) *OnceJob { return &OnceJob{job} }
 
+// SkipIfStillRunning skips an invocation of the Job if a previous invocation is still running.
+func SkipIfStillRunning(j Job) Job {
+	var running atomic.Bool
+	return FuncJob(func(ctx context.Context) {
+		if running.CompareAndSwap(false, true) {
+			defer running.Store(false)
+			j.Run(ctx)
+		}
+	})
+}
+
 // The Schedule describes a job's duty cycle.
 type Schedule interface {
 	// Next return the next activation time, later than the given time.

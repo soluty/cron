@@ -68,7 +68,7 @@ func SkipIfStillRunning(j IntoJob) Job {
 }
 
 // TimeoutWrapper automatically cancel the job context after a given duration
-func TimeoutWrapper(duration time.Duration) func(j IntoJob) Job {
+func TimeoutWrapper(duration time.Duration) JobWrapper {
 	return func(j IntoJob) Job {
 		return FuncJob(func(ctx context.Context) error {
 			timeoutCtx, cancel := context.WithTimeout(ctx, duration)

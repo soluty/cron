@@ -46,6 +46,7 @@ type OnceJob struct{ Job }
 
 func (j *OnceJob) Run(ctx context.Context) { j.Job.Run(ctx) }
 
+// Once creates a Job that will remove itself from the entries once executed
 func Once(job Job) Job { return &OnceJob{job} }
 
 // SkipIfStillRunning skips an invocation of the Job if a previous invocation is still running.

@@ -159,6 +159,12 @@ func Label(label string) func(entry *Entry) {
 	}
 }
 
+func Active(active bool) func(entry *Entry) {
+	return func(entry *Entry) {
+		entry.Active = active
+	}
+}
+
 // Entry consists of a schedule and the func to execute on that schedule.
 type Entry struct {
 	ID EntryID
@@ -171,12 +177,14 @@ type Entry struct {
 	// The Job to run.
 	Job   Job
 	Label string
+
+	Active bool
 }
 
 func less(e1, e2 *Entry) bool {
-	if e1.Next.IsZero() {
+	if e1.Next.IsZero() || !e1.Active {
 		return false
-	} else if e2.Next.IsZero() {
+	} else if e2.Next.IsZero() || !e2.Active {
 		return true
 	}
 	return e1.Next.Before(e2.Next)
@@ -232,12 +240,29 @@ func (c *Cron) Schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) Ent
 		ID:       EntryID(newID),
 		Schedule: schedule,
 		Job:      castIntoJob(cmd),
+		Active:   true,
 	}
 	utils.ApplyOptions(entry, opts)
 	entry.Next = entry.Schedule.Next(c.now())
 	c.entries.With(func(entries *[]*Entry) { insertSorted(entries, entry) })
 	c.entriesUpdated()
 	return entry.ID
+}
+
+func (c *Cron) Enable(id EntryID) { c.setEntryActive(id, true) }
+
+func (c *Cron) Disable(id EntryID) { c.setEntryActive(id, false) }
+
+func (c *Cron) setEntryActive(id EntryID, active bool) {
+	c.entries.With(func(entries *[]*Entry) {
+		if entry := utils.Find(*entries, func(e *Entry) bool { return e.ID == id }); entry != nil {
+			if (*entry).Active != active {
+				(*entry).Active = active
+				sort.Slice(*entries, func(i, j int) bool { return less((*entries)[i], (*entries)[j]) })
+			}
+		}
+	})
+	c.entriesUpdated()
 }
 
 func insertSorted(entries *[]*Entry, entry *Entry) {
@@ -374,7 +399,7 @@ func (c *Cron) runDueEntries() {
 			var toSortCount int
 			toRemove := make([]EntryID, 0)
 			for _, entry := range *entries {
-				if entry.Next.After(now) || entry.Next.IsZero() {
+				if entry.Next.After(now) || entry.Next.IsZero() || !entry.Active {
 					break
 				}
 				c.startJob(entry)

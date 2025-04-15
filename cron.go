@@ -42,6 +42,9 @@ var ErrEntryNotFound = errors.New("entry not found")
 // ErrUnsupportedJobType ...
 var ErrUnsupportedJobType = errors.New("unsupported job type")
 
+// ErrJobAlreadyRunning ...
+var ErrJobAlreadyRunning = errors.New("job already running")
+
 // Job is an interface for submitted cron jobs.
 type Job interface {
 	Run(context.Context) error
@@ -63,6 +66,8 @@ func SkipIfStillRunning(j IntoJob) Job {
 		if running.CompareAndSwap(false, true) {
 			defer running.Store(false)
 			err = castIntoJob(j).Run(ctx)
+		} else {
+			return ErrJobAlreadyRunning
 		}
 		return
 	})

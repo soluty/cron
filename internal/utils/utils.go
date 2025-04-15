@@ -1,6 +1,10 @@
 package utils
 
-import "reflect"
+import (
+	"math/rand/v2"
+	"reflect"
+	"time"
+)
 
 // Ptr ...
 func Ptr[T any](v T) *T { return &v }
@@ -108,4 +112,27 @@ func InsertionSortPartial[T any](data []T, n int, less func(a, b T) bool) {
 		}
 		data[j] = key
 	}
+}
+
+// EnsureRange ensure min is smaller or equal to max
+func EnsureRange(min, max int64) (int64, int64) {
+	if max < min {
+		min, max = max, min
+	}
+	return min, max
+}
+
+// Random generates a number between min and max inclusively
+func Random(min, max int64) int64 {
+	if min == max {
+		return min
+	}
+	min, max = EnsureRange(min, max)
+	return rand.Int64N(max-min+1) + min
+}
+
+// RandDuration generates random duration
+func RandDuration(min, max time.Duration) time.Duration {
+	n := Random(min.Nanoseconds(), max.Nanoseconds())
+	return time.Duration(n)
 }

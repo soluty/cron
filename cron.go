@@ -59,6 +59,14 @@ func SkipIfStillRunning(j Job) Job {
 	})
 }
 
+// Chain `Chain(j, w1, w2, w3)` -> `w3(w2(w1(j)))`
+func Chain(j Job, wrappers ...JobWrapper) Job {
+	for _, w := range wrappers {
+		j = w(j)
+	}
+	return j
+}
+
 // The Schedule describes a job's duty cycle.
 type Schedule interface {
 	// Next return the next activation time, later than the given time.

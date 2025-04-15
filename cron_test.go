@@ -39,7 +39,7 @@ func recvWithTimeout(t *testing.T, ch <-chan struct{}, msg ...string) {
 
 type PanicJob struct{}
 
-func (d PanicJob) Run(_ context.Context) {
+func (d PanicJob) Run(_ context.Context) error {
 	panic("YOLO")
 }
 
@@ -298,22 +298,26 @@ func TestStopWithoutStart(t *testing.T) {
 // Simple job that increment an atomic counter every time the job is run
 type baseJob struct{ calls *atomic.Int32 }
 
-func (j baseJob) Run(_ context.Context) { j.calls.Add(1) }
+func (j baseJob) Run(_ context.Context) error {
+	j.calls.Add(1)
+	return nil
+}
 
 type namedJob struct {
 	calls *atomic.Int32
 	name  string
 }
 
-func (t namedJob) Run(_ context.Context) {
+func (t namedJob) Run(_ context.Context) error {
 	t.calls.Add(1)
+	return nil
 }
 
 // Test that adding an invalid job spec returns an error
 func TestInvalidJobSpec(t *testing.T) {
 	clock := clockwork.NewRealClock()
 	cron := New(WithClock(clock))
-	_, err := cron.AddJob("this will not parse", nil)
+	_, err := cron.AddJob("this will not parse", func() {})
 	assert.Error(t, err, "expected an error with invalid spec, got nil")
 }
 
@@ -455,7 +459,7 @@ func TestJobWithZeroTimeDoesNotRun(t *testing.T) {
 	cron := New(WithClock(clock))
 	var calls atomic.Int32
 	_, _ = cron.AddJob("* * * * * *", baseJob{&calls})
-	cron.Schedule(new(ZeroSchedule), FuncJob(func(context.Context) { t.Error("expected zero task will not run") }))
+	cron.Schedule(new(ZeroSchedule), FuncJob1(func() { t.Error("expected zero task will not run") }))
 	cron.Start()
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), calls.Load())
@@ -490,8 +494,8 @@ func TestScheduleAfterRemoval(t *testing.T) {
 	var calls atomic.Int32
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
-	hourJob := cron.Schedule(Every(time.Hour), FuncJob(func(context.Context) {}))
-	cron.Schedule(Every(time.Second), FuncJob(func(context.Context) {
+	hourJob := cron.Schedule(Every(time.Hour), FuncJob1(func() {}))
+	cron.Schedule(Every(time.Second), FuncJob1(func() {
 		switch calls.Load() {
 		case 0:
 			calls.Add(1)

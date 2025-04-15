@@ -3,16 +3,17 @@ package cron
 import (
 	"context"
 	"errors"
+	"github.com/alaingilbert/clockwork"
 	"github.com/alaingilbert/cron/internal/mtx"
 	"github.com/alaingilbert/cron/internal/utils"
 	"log"
+	"os"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/alaingilbert/clockwork"
 )
 
 // Cron keeps track of any number of entries, invoking the associated func as
@@ -42,14 +43,14 @@ var ErrUnsupportedJobType = errors.New("unsupported job type")
 
 // Job is an interface for submitted cron jobs.
 type Job interface {
-	Run(context.Context)
+	Run(context.Context) error
 }
 
 type JobWrapper func(Job) Job
 
 type OnceJob struct{ Job }
 
-func (j *OnceJob) Run(ctx context.Context) { j.Job.Run(ctx) }
+func (j *OnceJob) Run(ctx context.Context) error { return j.Job.Run(ctx) }
 
 // Once creates a Job that will remove itself from the entries once executed
 func Once(job Job) Job { return &OnceJob{job} }
@@ -57,21 +58,22 @@ func Once(job Job) Job { return &OnceJob{job} }
 // SkipIfStillRunning skips an invocation of the Job if a previous invocation is still running.
 func SkipIfStillRunning(j Job) Job {
 	var running atomic.Bool
-	return FuncJob(func(ctx context.Context) {
+	return FuncJob(func(ctx context.Context) (err error) {
 		if running.CompareAndSwap(false, true) {
 			defer running.Store(false)
-			j.Run(ctx)
+			err = j.Run(ctx)
 		}
+		return
 	})
 }
 
 // TimeoutWrapper automatically cancel the job context after a given duration
 func TimeoutWrapper(duration time.Duration) func(j Job) Job {
 	return func(j Job) Job {
-		return FuncJob(func(ctx context.Context) {
+		return FuncJob(func(ctx context.Context) error {
 			timeoutCtx, cancel := context.WithTimeout(ctx, duration)
 			defer cancel()
-			j.Run(timeoutCtx)
+			return j.Run(timeoutCtx)
 		})
 	}
 }
@@ -79,23 +81,32 @@ func TimeoutWrapper(duration time.Duration) func(j Job) Job {
 // WithTimeout ...
 // `_, _ = cron.AddJob("* * * * * *", cron.WithTimeout(time.Second, func(ctx context.Context) { ... }))`
 func WithTimeout(d time.Duration, job IntoJob) Job {
-	j, err := castIntoJob(job)
-	if err != nil {
-		panic(err)
-	}
+	j := castIntoJob(job)
 	return TimeoutWrapper(d)(j)
 }
 
 type IntoJob any
 
-func castIntoJob(v IntoJob) (Job, error) {
+func castIntoJob(v IntoJob) Job {
 	switch j := v.(type) {
-	case func(ctx context.Context):
-		return FuncJob(j), nil
+	case func(context.Context) error:
+		return FuncJob(j)
+	case func() error:
+		return FuncJob(func(context.Context) error { return j() })
+	case func(context.Context):
+		return FuncJob(func(ctx context.Context) error {
+			j(ctx)
+			return nil
+		})
+	case func():
+		return FuncJob(func(context.Context) error {
+			j()
+			return nil
+		})
 	case Job:
-		return j, nil
+		return j
 	default:
-		return nil, ErrUnsupportedJobType
+		panic(ErrUnsupportedJobType)
 	}
 }
 
@@ -175,16 +186,20 @@ func (c *Cron) isRunning() bool {
 }
 
 // FuncJob is a wrapper that turns a func() into a cron.Job
-type FuncJob func(context.Context)
+type FuncJob func(context.Context) error
 
-func (f FuncJob) Run(ctx context.Context) { f(ctx) }
+func (f FuncJob) Run(ctx context.Context) error { return f(ctx) }
+
+type FuncJob1 func()
+
+func (f FuncJob1) Run(context.Context) error {
+	f()
+	return nil
+}
 
 // AddJob adds a Job to the Cron to be run on the given schedule.
 func (c *Cron) AddJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
-	job, err := castIntoJob(cmd)
-	if err != nil {
-		return 0, err
-	}
+	job := castIntoJob(cmd)
 	schedule, err := Parse(spec)
 	if err != nil {
 		return 0, err
@@ -273,9 +288,15 @@ func (c *Cron) Stop() <-chan struct{} {
 	return ch
 }
 
-func (c *Cron) runWithRecovery(j Job) {
-	defer func() { recover() }()
-	j.Run(c.ctx)
+func (c *Cron) runWithRecovery(entry *Entry) {
+	defer func() {
+		if r := recover(); r != nil {
+			c.logger.Printf("%s\n", string(debug.Stack()))
+		}
+	}()
+	if err := entry.Job.Run(c.ctx); err != nil {
+		c.logger.Printf("error running job #%d : %s : %v", entry.ID, entry.Label, err)
+	}
 }
 
 // Run the scheduler. this is private just due to the need to synchronize
@@ -334,7 +355,7 @@ func (c *Cron) runDueEntries() {
 				if entry.Next.After(now) || entry.Next.IsZero() {
 					break
 				}
-				c.startJob(entry.Job)
+				c.startJob(entry)
 				if _, ok := entry.Job.(*OnceJob); ok {
 					removeEntry(entries, entry.ID)
 				} else {
@@ -374,14 +395,14 @@ func removeEntry(entries *[]*Entry, id EntryID) {
 }
 
 // startJob runs the given job in a new goroutine.
-func (c *Cron) startJob(j Job) {
+func (c *Cron) startJob(entry *Entry) {
 	c.runningJobsCount.Add(1)
 	go func() {
 		defer func() {
 			c.runningJobsCount.Add(-1)
 			c.signalJobCompleted()
 		}()
-		c.runWithRecovery(j)
+		c.runWithRecovery(entry)
 	}()
 }
 

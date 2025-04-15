@@ -175,18 +175,17 @@ type FuncJob func(context.Context)
 
 func (f FuncJob) Run(ctx context.Context) { f(ctx) }
 
-// AddFunc adds a func to the Cron to be run on the given schedule.
-func (c *Cron) AddFunc(spec string, cmd func(context.Context), opts ...EntryOption) (EntryID, error) {
-	return c.AddJob(spec, FuncJob(cmd), opts...)
-}
-
 // AddJob adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) AddJob(spec string, cmd Job, opts ...EntryOption) (EntryID, error) {
+func (c *Cron) AddJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
+	job, err := castIntoJob(cmd)
+	if err != nil {
+		return 0, err
+	}
 	schedule, err := Parse(spec)
 	if err != nil {
 		return 0, err
 	}
-	return c.Schedule(schedule, cmd, opts...), nil
+	return c.Schedule(schedule, job, opts...), nil
 }
 
 // Schedule adds a Job to the Cron to be run on the given schedule.

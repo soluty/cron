@@ -49,7 +49,7 @@ func TestFuncPanicRecovery(t *testing.T) {
 	cron.Start()
 	defer cron.Stop()
 	ch := make(chan string, 1)
-	_, _ = cron.AddFunc("* * * * * *", func(context.Context) {
+	_, _ = cron.AddJob("* * * * * *", func(context.Context) {
 		defer func() {
 			if r := recover(); r != nil {
 				ch <- fmt.Sprintf("%v", r)
@@ -120,7 +120,7 @@ func TestStopWait(t *testing.T) {
 	cron := New(WithClock(clock))
 	c1 := make(chan struct{})
 	c2 := make(chan struct{})
-	_, _ = cron.AddFunc("1 0 1 * * *", func(context.Context) {
+	_, _ = cron.AddJob("1 0 1 * * *", func(context.Context) {
 		close(c1)
 		clock.Sleep(time.Minute)
 	})
@@ -201,7 +201,7 @@ func TestSnapshotEntries(t *testing.T) {
 func TestEntry(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
-	id, _ := cron.AddFunc("@every 2s", func(context.Context) {})
+	id, _ := cron.AddJob("@every 2s", func(context.Context) {})
 	cron.Start()
 	entry1, _ := cron.Entry(id)
 	_, err := cron.Entry(EntryID(123))
@@ -372,8 +372,8 @@ func TestChangeLocationWhileRunning(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock), WithLocation(time.UTC))
 	cron.Start()
-	_, _ = cron.AddFunc("* * * * * ?", func(context.Context) {})
-	_, _ = cron.AddFunc("0 0 1 * * ?", func(context.Context) {})
+	_, _ = cron.AddJob("* * * * * ?", func(context.Context) {})
+	_, _ = cron.AddJob("0 0 1 * * ?", func(context.Context) {})
 	entries := cron.Entries()
 	assert.Equal(t, clock.Now().Add(time.Second).In(time.UTC), entries[0].Next)
 	assert.Equal(t, time.Date(1984, time.April, 4, 1, 0, 0, 0, time.UTC), entries[1].Next)
@@ -389,8 +389,8 @@ func TestChangeLocationWhileRunning2(t *testing.T) {
 	newLoc := time.FixedZone("TMZ", 3600)
 	cron := New(WithClock(clock), WithLocation(time.UTC))
 	cron.Start()
-	_, _ = cron.AddFunc("* * * * * ?", func(context.Context) {})
-	_, _ = cron.AddFunc("0 0 1 * * ?", func(context.Context) {})
+	_, _ = cron.AddJob("* * * * * ?", func(context.Context) {})
+	_, _ = cron.AddJob("0 0 1 * * ?", func(context.Context) {})
 	entries := cron.Entries()
 	assert.Equal(t, clock.Now().Add(time.Second).In(time.UTC), entries[0].Next)
 	assert.Equal(t, time.Date(2000, time.January, 2, 1, 0, 0, 0, time.UTC), entries[1].Next)
@@ -406,8 +406,8 @@ func TestChangeLocationWhileRunning3(t *testing.T) {
 	newLoc := time.FixedZone("TMZ", 2*3600)
 	cron := New(WithClock(clock), WithLocation(time.UTC))
 	cron.Start()
-	id1, _ := cron.AddFunc("0 0 1 * * *", func(context.Context) {})
-	id2, _ := cron.AddFunc("0 0 3 * * *", func(context.Context) {})
+	id1, _ := cron.AddJob("0 0 1 * * *", func(context.Context) {})
+	id2, _ := cron.AddJob("0 0 3 * * *", func(context.Context) {})
 	entries := cron.Entries()
 	assert.Equal(t, time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC), cron.now())
 	assert.Equal(t, time.Date(2000, time.January, 1, 1, 0, 0, 0, time.UTC), entries[0].Next)
@@ -575,7 +575,7 @@ func TestNextIDIsThreadSafe(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		go func() {
 			defer wg.Done()
-			_, _ = cron.AddFunc("* * * * * *", func(context.Context) {})
+			_, _ = cron.AddJob("* * * * * *", func(context.Context) {})
 		}()
 	}
 	wg.Wait()
@@ -592,7 +592,7 @@ func TestNextIDIsThreadSafe(t *testing.T) {
 func TestLabelEntryOption(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
 	cron := New(WithClock(clock))
-	_, _ = cron.AddFunc("* * * * * *", func(_ context.Context) {}, Label("#1"))
+	_, _ = cron.AddJob("* * * * * *", func(_ context.Context) {}, Label("#1"))
 	entries := cron.Entries()
 	assert.Equal(t, "#1", entries[0].Label)
 }

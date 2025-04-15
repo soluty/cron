@@ -41,7 +41,7 @@ func recvWithTimeout(t *testing.T, ch <-chan struct{}, msg ...string) {
 
 type PanicJob struct{}
 
-func (d PanicJob) Run(_ context.Context) error {
+func (d PanicJob) Run(context.Context, EntryID) error {
 	panic("YOLO")
 }
 
@@ -300,7 +300,7 @@ func TestStopWithoutStart(t *testing.T) {
 // Simple job that increment an atomic counter every time the job is run
 type baseJob struct{ calls *atomic.Int32 }
 
-func (j baseJob) Run(_ context.Context) error {
+func (j baseJob) Run(context.Context, EntryID) error {
 	j.calls.Add(1)
 	return nil
 }
@@ -310,7 +310,7 @@ type namedJob struct {
 	name  string
 }
 
-func (t namedJob) Run(_ context.Context) error {
+func (t namedJob) Run(context.Context, EntryID) error {
 	t.calls.Add(1)
 	return nil
 }

@@ -47,14 +47,14 @@ var ErrJobAlreadyRunning = errors.New("job already running")
 
 // Job is an interface for submitted cron jobs.
 type Job interface {
-	Run(context.Context) error
+	Run(context.Context, EntryID) error
 }
 
 type JobWrapper func(IntoJob) Job
 
 type OnceJob struct{ Job }
 
-func (j *OnceJob) Run(ctx context.Context) error { return j.Job.Run(ctx) }
+func (j *OnceJob) Run(ctx context.Context, id EntryID) error { return j.Job.Run(ctx, id) }
 
 // Once creates a Job that will remove itself from the entries once executed
 func Once(job IntoJob) Job { return &OnceJob{castIntoJob(job)} }
@@ -62,10 +62,10 @@ func Once(job IntoJob) Job { return &OnceJob{castIntoJob(job)} }
 // SkipIfStillRunning skips an invocation of the Job if a previous invocation is still running.
 func SkipIfStillRunning(j IntoJob) Job {
 	var running atomic.Bool
-	return FuncJob(func(ctx context.Context) (err error) {
+	return FuncJob(func(ctx context.Context, id EntryID) (err error) {
 		if running.CompareAndSwap(false, true) {
 			defer running.Store(false)
-			err = castIntoJob(j).Run(ctx)
+			err = castIntoJob(j).Run(ctx, id)
 		} else {
 			return ErrJobAlreadyRunning
 		}
@@ -76,14 +76,14 @@ func SkipIfStillRunning(j IntoJob) Job {
 // JitterWrapper add some random delay before running the job
 func JitterWrapper(duration time.Duration) JobWrapper {
 	return func(j IntoJob) Job {
-		return FuncJob(func(ctx context.Context) error {
+		return FuncJob(func(ctx context.Context, id EntryID) error {
 			delay := utils.RandDuration(0, max(duration, 0))
 			select {
 			case <-time.After(delay):
 			case <-ctx.Done():
 				return ctx.Err()
 			}
-			return castIntoJob(j).Run(ctx)
+			return castIntoJob(j).Run(ctx, id)
 		})
 	}
 }
@@ -96,10 +96,10 @@ func WithJitter(duration time.Duration, job IntoJob) Job {
 // TimeoutWrapper automatically cancel the job context after a given duration
 func TimeoutWrapper(duration time.Duration) JobWrapper {
 	return func(j IntoJob) Job {
-		return FuncJob(func(ctx context.Context) error {
+		return FuncJob(func(ctx context.Context, id EntryID) error {
 			timeoutCtx, cancel := context.WithTimeout(ctx, duration)
 			defer cancel()
-			return castIntoJob(j).Run(timeoutCtx)
+			return castIntoJob(j).Run(timeoutCtx, id)
 		})
 	}
 }
@@ -115,16 +115,30 @@ type IntoJob any
 func castIntoJob(v IntoJob) Job {
 	switch j := v.(type) {
 	case func(context.Context) error:
+		return FuncJob(func(ctx context.Context, _ EntryID) error { return j(ctx) })
+	case func(context.Context, EntryID) error:
 		return FuncJob(j)
+	case func(context.Context, EntryID):
+		return FuncJob(func(ctx context.Context, id EntryID) error {
+			j(ctx, id)
+			return nil
+		})
 	case func() error:
-		return FuncJob(func(context.Context) error { return j() })
+		return FuncJob(func(context.Context, EntryID) error { return j() })
 	case func(context.Context):
-		return FuncJob(func(ctx context.Context) error {
+		return FuncJob(func(ctx context.Context, _ EntryID) error {
 			j(ctx)
 			return nil
 		})
+	case func(id EntryID):
+		return FuncJob(func(_ context.Context, id EntryID) error {
+			j(id)
+			return nil
+		})
+	case func(id EntryID) error:
+		return FuncJob(func(_ context.Context, id EntryID) error { return j(id) })
 	case func():
-		return FuncJob(func(context.Context) error {
+		return FuncJob(func(context.Context, EntryID) error {
 			j()
 			return nil
 		})
@@ -218,9 +232,9 @@ func (c *Cron) isRunning() bool {
 }
 
 // FuncJob is a wrapper that turns a func() into a cron.Job
-type FuncJob func(context.Context) error
+type FuncJob func(context.Context, EntryID) error
 
-func (f FuncJob) Run(ctx context.Context) error { return f(ctx) }
+func (f FuncJob) Run(ctx context.Context, id EntryID) error { return f(ctx, id) }
 
 // AddJob adds a Job to the Cron to be run on the given schedule.
 func (c *Cron) AddJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
@@ -335,7 +349,7 @@ func (c *Cron) runWithRecovery(entry *Entry) {
 			c.logger.Printf("%s\n", string(debug.Stack()))
 		}
 	}()
-	if err := entry.Job.Run(c.ctx); err != nil {
+	if err := entry.Job.Run(c.ctx, entry.ID); err != nil {
 		msg := fmt.Sprintf("error running job #%d", entry.ID)
 		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
 		msg += " : " + err.Error()

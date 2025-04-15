@@ -75,6 +75,14 @@ type Schedule interface {
 	Next(time.Time) time.Time
 }
 
+type EntryOption func(*Entry)
+
+func Label(label string) func(entry *Entry) {
+	return func(entry *Entry) {
+		entry.Label = label
+	}
+}
+
 // Entry consists of a schedule and the func to execute on that schedule.
 type Entry struct {
 	ID EntryID
@@ -131,28 +139,28 @@ type FuncJob func(context.Context)
 func (f FuncJob) Run(ctx context.Context) { f(ctx) }
 
 // AddFunc adds a func to the Cron to be run on the given schedule.
-func (c *Cron) AddFunc(spec string, cmd func(context.Context), label string) (EntryID, error) {
-	return c.AddJob(spec, FuncJob(cmd), label)
+func (c *Cron) AddFunc(spec string, cmd func(context.Context), opts ...EntryOption) (EntryID, error) {
+	return c.AddJob(spec, FuncJob(cmd), opts...)
 }
 
 // AddJob adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) AddJob(spec string, cmd Job, label string) (EntryID, error) {
+func (c *Cron) AddJob(spec string, cmd Job, opts ...EntryOption) (EntryID, error) {
 	schedule, err := Parse(spec)
 	if err != nil {
 		return 0, err
 	}
-	return c.Schedule(schedule, cmd, label), nil
+	return c.Schedule(schedule, cmd, opts...), nil
 }
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) Schedule(schedule Schedule, cmd Job, label string) EntryID {
+func (c *Cron) Schedule(schedule Schedule, cmd Job, opts ...EntryOption) EntryID {
 	newID := c.nextID.Add(1)
 	entry := &Entry{
 		ID:       EntryID(newID),
 		Schedule: schedule,
 		Job:      cmd,
-		Label:    label,
 	}
+	utils.ApplyOptions(entry, opts)
 	entry.Next = entry.Schedule.Next(c.now())
 	c.entries.With(func(entries *[]*Entry) { insertSorted(entries, entry) })
 	c.entriesUpdated()

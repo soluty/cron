@@ -60,6 +60,15 @@ func SkipIfStillRunning(j Job) Job {
 	})
 }
 
+// TimeoutWrapper automatically cancel the job context after a given duration
+func TimeoutWrapper(duration time.Duration, j Job) Job {
+	return FuncJob(func(ctx context.Context) {
+		timeoutCtx, cancel := context.WithTimeout(ctx, duration)
+		defer cancel()
+		j.Run(timeoutCtx)
+	})
+}
+
 // Chain `Chain(j, w1, w2, w3)` -> `w3(w2(w1(j)))`
 func Chain(j Job, wrappers ...JobWrapper) Job {
 	for _, w := range wrappers {

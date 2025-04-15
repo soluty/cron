@@ -25,7 +25,7 @@ import (
 type SomeJob struct{}
 
 // Run implements the Job interface for SomeJob
-func (s *SomeJob) Run(context.Context) error {
+func (s SomeJob) Run(context.Context) error {
 	fmt.Println("Some job")
 	return nil
 }
@@ -51,6 +51,7 @@ func main() {
 	})
 
 	// You can give a description to your jobs using the cron.Label helper
+	// The label will be part of the log if the job returns an error
 	_, _ = c.AddJob("* * * * * *", func() error {
 		return errors.New("this error will be logged by the cron logger")
 	}, cron.Label("some description"))
@@ -100,9 +101,13 @@ func main() {
 		time.Sleep(3 * time.Second)
 	}))
 
+	// You can use cron.Chain to chain wrappers to your job
+	_, _ = c.AddJob("* * * * * *", cron.Chain(func() {
+		fmt.Println("job with chained wrappers")
+	}, cron.TimeoutWrapper(time.Second), cron.Once))
+
 	c.Run()
 }
-
 ```
 
 ```go

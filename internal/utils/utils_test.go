@@ -25,6 +25,13 @@ func TestTernary(t *testing.T) {
 	assert.Equal(t, "world", Ternary(false, "hello", "world"))
 }
 
+func TestTernaryOrZero(t *testing.T) {
+	assert.Equal(t, 1, TernaryOrZero(true, 1))
+	assert.Equal(t, 0, TernaryOrZero(false, 1))
+	assert.Equal(t, "foo", TernaryOrZero(true, "foo"))
+	assert.Equal(t, "", TernaryOrZero(false, "foo"))
+}
+
 func TestOr(t *testing.T) {
 	assert.Equal(t, "default", Or("", "default"))
 	assert.Equal(t, "value", Or("value", "default"))

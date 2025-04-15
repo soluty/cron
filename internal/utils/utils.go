@@ -13,6 +13,11 @@ func Ternary[T any](predicate bool, a, b T) T {
 	return b
 }
 
+// TernaryOrZero ...
+func TernaryOrZero[T any](predicate bool, a T) (zero T) {
+	return Ternary(predicate, a, zero)
+}
+
 // Or return "a" if it is non-zero otherwise "b"
 func Or[T comparable](a, b T) (zero T) {
 	return Ternary(a != zero, a, b)

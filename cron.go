@@ -159,10 +159,8 @@ func Label(label string) func(entry *Entry) {
 	}
 }
 
-func Active(active bool) func(entry *Entry) {
-	return func(entry *Entry) {
-		entry.Active = active
-	}
+func Disabled(entry *Entry) {
+	entry.Active = false
 }
 
 // Entry consists of a schedule and the func to execute on that schedule.

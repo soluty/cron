@@ -110,6 +110,11 @@ func main() {
 	_, _ = c.AddJob("0 */5 * * * *", cron.WithJitter(time.Minute, func() {
 		fmt.Println("Runs every 5min, but wait 0-1 minute before starting")
 	}))
+
+	// This job is disabled by default
+	_, _ = c.AddJob("* * * * * *", func() {
+		fmt.Println("this job is disabled by default")
+	}, cron.Disabled)
 	
 	c.Run()
 }

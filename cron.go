@@ -73,6 +73,26 @@ func SkipIfStillRunning(j IntoJob) Job {
 	})
 }
 
+// JitterWrapper add some random delay before running the job
+func JitterWrapper(duration time.Duration) JobWrapper {
+	return func(j IntoJob) Job {
+		return FuncJob(func(ctx context.Context) error {
+			delay := utils.RandDuration(0, max(duration, 0))
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			return castIntoJob(j).Run(ctx)
+		})
+	}
+}
+
+// WithJitter add some random delay before running the job
+func WithJitter(duration time.Duration, job IntoJob) Job {
+	return JitterWrapper(duration)(job)
+}
+
 // TimeoutWrapper automatically cancel the job context after a given duration
 func TimeoutWrapper(duration time.Duration) JobWrapper {
 	return func(j IntoJob) Job {

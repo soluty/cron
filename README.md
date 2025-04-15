@@ -106,6 +106,11 @@ func main() {
 		fmt.Println("job with chained wrappers")
 	}, cron.TimeoutWrapper(time.Second), cron.Once))
 
+	// Jitter adds some random delay before running the job
+	_, _ = c.AddJob("0 */5 * * * *", cron.WithJitter(time.Minute, func() {
+		fmt.Println("Runs every 5min, but wait 0-1 minute before starting")
+	}))
+	
 	c.Run()
 }
 ```

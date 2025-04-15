@@ -41,9 +41,9 @@ func main() {
 	)
 
 	// A simple function can be used as a job
-	_, _ = c.AddJob("* * * * * *", cron.WithTimeout(2*time.Second, func() {
+	_, _ = c.AddJob("* * * * * *", func() {
 		fmt.Println("hello world")
-	}))
+	})
 
 	// If your function returns an error, it will be logged by the cron logger
 	_, _ = c.AddJob("* * * * * *", func() error {

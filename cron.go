@@ -3,6 +3,7 @@ package cron
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/alaingilbert/clockwork"
 	"github.com/alaingilbert/cron/internal/mtx"
 	"github.com/alaingilbert/cron/internal/utils"
@@ -294,7 +295,10 @@ func (c *Cron) runWithRecovery(entry *Entry) {
 		}
 	}()
 	if err := entry.Job.Run(c.ctx); err != nil {
-		c.logger.Printf("error running job #%d : %s : %v", entry.ID, entry.Label, err)
+		msg := fmt.Sprintf("error running job #%d", entry.ID)
+		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
+		msg += " : " + err.Error()
+		c.logger.Print(msg)
 	}
 }
 

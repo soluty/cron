@@ -21,5 +21,5 @@ func Every(duration time.Duration) ConstantDelaySchedule {
 // Next returns the next time this should be run.
 // This rounds so that the next activation time will be on the second.
 func (s ConstantDelaySchedule) Next(t time.Time) time.Time {
-	return t.Add(s.Delay - time.Duration(t.Nanosecond())*time.Nanosecond)
+	return t.Add(s.Delay - time.Duration(t.Nanosecond()))
 }

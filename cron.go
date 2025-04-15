@@ -46,7 +46,7 @@ type OnceJob struct{ Job }
 
 func (j *OnceJob) Run(ctx context.Context) { j.Job.Run(ctx) }
 
-func Once(job Job) *OnceJob { return &OnceJob{job} }
+func Once(job Job) Job { return &OnceJob{job} }
 
 // SkipIfStillRunning skips an invocation of the Job if a previous invocation is still running.
 func SkipIfStillRunning(j Job) Job {

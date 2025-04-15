@@ -37,7 +37,7 @@ var ErrEntryNotFound = errors.New("entry not found")
 
 // Job is an interface for submitted cron jobs.
 type Job interface {
-	Run()
+	Run(context.Context)
 }
 
 // The Schedule describes a job's duty cycle.
@@ -98,12 +98,12 @@ func (c *Cron) isRunning() bool {
 }
 
 // FuncJob is a wrapper that turns a func() into a cron.Job
-type FuncJob func()
+type FuncJob func(context.Context)
 
-func (f FuncJob) Run() { f() }
+func (f FuncJob) Run(ctx context.Context) { f(ctx) }
 
 // AddFunc adds a func to the Cron to be run on the given schedule.
-func (c *Cron) AddFunc(spec string, cmd func(), label string) (EntryID, error) {
+func (c *Cron) AddFunc(spec string, cmd func(context.Context), label string) (EntryID, error) {
 	return c.AddJob(spec, FuncJob(cmd), label)
 }
 
@@ -199,7 +199,7 @@ func (c *Cron) Stop() <-chan struct{} {
 
 func (c *Cron) runWithRecovery(j Job) {
 	defer func() { recover() }()
-	j.Run()
+	j.Run(c.ctx)
 }
 
 // Run the scheduler. this is private just due to the need to synchronize

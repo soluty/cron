@@ -461,7 +461,7 @@ func TestJobWithZeroTimeDoesNotRun(t *testing.T) {
 	cron := New(WithClock(clock))
 	var calls atomic.Int32
 	_, _ = cron.AddJob("* * * * * *", baseJob{&calls})
-	cron.Schedule(new(ZeroSchedule), FuncJob1(func() { t.Error("expected zero task will not run") }))
+	cron.Schedule(new(ZeroSchedule), func() { t.Error("expected zero task will not run") })
 	cron.Start()
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), calls.Load())
@@ -496,8 +496,8 @@ func TestScheduleAfterRemoval(t *testing.T) {
 	var calls atomic.Int32
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
-	hourJob := cron.Schedule(Every(time.Hour), FuncJob1(func() {}))
-	cron.Schedule(Every(time.Second), FuncJob1(func() {
+	hourJob := cron.Schedule(Every(time.Hour), func() {})
+	cron.Schedule(Every(time.Second), func() {
 		switch calls.Load() {
 		case 0:
 			calls.Add(1)
@@ -510,7 +510,7 @@ func TestScheduleAfterRemoval(t *testing.T) {
 		case 3:
 			panic("unexpected 3rd call")
 		}
-	}))
+	})
 	cron.Start()
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), calls.Load())

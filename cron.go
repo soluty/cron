@@ -191,30 +191,22 @@ type FuncJob func(context.Context) error
 
 func (f FuncJob) Run(ctx context.Context) error { return f(ctx) }
 
-type FuncJob1 func()
-
-func (f FuncJob1) Run(context.Context) error {
-	f()
-	return nil
-}
-
 // AddJob adds a Job to the Cron to be run on the given schedule.
 func (c *Cron) AddJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
-	job := castIntoJob(cmd)
 	schedule, err := Parse(spec)
 	if err != nil {
 		return 0, err
 	}
-	return c.Schedule(schedule, job, opts...), nil
+	return c.Schedule(schedule, cmd, opts...), nil
 }
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) Schedule(schedule Schedule, cmd Job, opts ...EntryOption) EntryID {
+func (c *Cron) Schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) EntryID {
 	newID := c.nextID.Add(1)
 	entry := &Entry{
 		ID:       EntryID(newID),
 		Schedule: schedule,
-		Job:      cmd,
+		Job:      castIntoJob(cmd),
 	}
 	utils.ApplyOptions(entry, opts)
 	entry.Next = entry.Schedule.Next(c.now())

@@ -1,9 +1,8 @@
-Fork of https://godoc.org/github.com/robfig/cron  
-
 Changes:  
 Jobs has a context  
 Jobs recover panic by default  
 Jobs can have a description (label)  
+Jobs ID are string and can have user specified ID  
 Can have a job that only run once using cron.Once  
 Can change the *time.Location while running  
 Do not sort all entries at evey iteration  

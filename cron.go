@@ -32,8 +32,8 @@ type Cron struct {
 	update           chan context.CancelFunc   // Triggers update in the scheduler loop
 	running          atomic.Bool               // Indicates if the scheduler is currently running
 	location         mtx.RWMtx[*time.Location] // Thread-safe time zone location
-	logger           *log.Logger               // Logger
-	parser           ScheduleParser
+	logger           *log.Logger               // Logger for scheduler events, errors, and diagnostics
+	parser           ScheduleParser            // Parses cron expressions into schedule objects
 }
 
 // ErrEntryNotFound ...

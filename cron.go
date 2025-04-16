@@ -400,7 +400,7 @@ func (c *Cron) runNow(id EntryID) {
 	}); err != nil {
 		return
 	}
-	c.entriesUpdated()
+	c.entriesUpdated() // runNow
 }
 
 func (c *Cron) getLocation() *time.Location {
@@ -410,7 +410,7 @@ func (c *Cron) getLocation() *time.Location {
 func (c *Cron) setLocation(newLoc *time.Location) {
 	c.location.Set(newLoc)
 	c.setEntriesNext()
-	c.entriesUpdated()
+	c.entriesUpdated() // setLocation
 }
 
 func (c *Cron) addJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
@@ -438,7 +438,7 @@ func (c *Cron) addEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
 		return "", ErrIDAlreadyUsed
 	}
 	c.entries.With(func(entries *[]*Entry) { insertSorted(entries, &entry) })
-	c.entriesUpdated()
+	c.entriesUpdated() // addEntry
 	return entry.ID, nil
 }
 
@@ -457,7 +457,7 @@ func (c *Cron) setEntryActive(id EntryID, active bool) {
 	}); err != nil {
 		return
 	}
-	c.entriesUpdated()
+	c.entriesUpdated() // setEntryActive
 }
 
 func (c *Cron) sortEntries(entries *[]*Entry) {
@@ -473,7 +473,7 @@ func insertSorted(entries *[]*Entry, entry *Entry) {
 
 func (c *Cron) remove(id EntryID) {
 	c.removeEntry(id)
-	c.entriesUpdated()
+	c.entriesUpdated() // remove
 }
 
 func (c *Cron) getEntries() (out []Entry) {

@@ -14,6 +14,7 @@ type Config struct {
 	Location *time.Location
 	Clock    clockwork.Clock
 	Logger   *log.Logger
+	Parser   ScheduleParser
 }
 
 // Option represents a modification to the default behavior of a Cron.
@@ -44,5 +45,12 @@ func WithContext(ctx context.Context) Option {
 func WithLogger(logger *log.Logger) Option {
 	return func(c *Config) {
 		c.Logger = logger
+	}
+}
+
+// WithParser overrides the parser used for interpreting job schedules.
+func WithParser(p ScheduleParser) Option {
+	return func(c *Config) {
+		c.Parser = p
 	}
 }

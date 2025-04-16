@@ -33,6 +33,7 @@ type Cron struct {
 	running          atomic.Bool               // Indicates if the scheduler is currently running
 	location         mtx.RWMtx[*time.Location] // Thread-safe time zone location
 	logger           *log.Logger               // Logger
+	parser           ScheduleParser
 }
 
 // ErrEntryNotFound ...
@@ -54,6 +55,11 @@ type Schedule interface {
 	Next(time.Time) time.Time
 }
 
+// ScheduleParser is an interface for schedule spec parsers that return a Schedule
+type ScheduleParser interface {
+	Parse(spec string) (Schedule, error)
+}
+
 //-----------------------------------------------------------------------------
 
 // New returns a new Cron job runner
@@ -63,6 +69,7 @@ func New(opts ...Option) *Cron {
 	location := utils.Or(cfg.Location, clock.Location())
 	parentCtx := utils.Or(cfg.Ctx, context.Background())
 	logger := utils.Or(cfg.Logger, log.New(os.Stderr, "cron", log.LstdFlags))
+	parser := utils.Or(cfg.Parser, ScheduleParser(standardParser))
 	ctx, cancel := context.WithCancel(parentCtx)
 	return &Cron{
 		cond:     sync.Cond{L: &sync.Mutex{}},
@@ -72,6 +79,7 @@ func New(opts ...Option) *Cron {
 		update:   make(chan context.CancelFunc),
 		location: mtx.NewRWMtx(location),
 		logger:   logger,
+		parser:   parser,
 	}
 }
 
@@ -194,7 +202,7 @@ func (c *Cron) runNow(id EntryID) {
 }
 
 func (c *Cron) addJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
-	schedule, err := Parse(spec)
+	schedule, err := c.parser.Parse(spec)
 	if err != nil {
 		return "", err
 	}

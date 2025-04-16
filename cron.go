@@ -56,7 +56,7 @@ type Schedule interface {
 
 //-----------------------------------------------------------------------------
 
-// New returns a new Cron job runner, in the Local time zone.
+// New returns a new Cron job runner
 func New(opts ...Option) *Cron {
 	cfg := utils.BuildConfig(opts)
 	clock := utils.Or(cfg.Clock, clockwork.NewRealClock())

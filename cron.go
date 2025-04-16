@@ -423,7 +423,7 @@ func (c *Cron) Stop() <-chan struct{} {
 	return ch
 }
 
-func (c *Cron) runWithRecovery(entry *Entry) {
+func (c *Cron) runWithRecovery(entry Entry) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.logger.Printf("%s\n", string(debug.Stack()))
@@ -493,7 +493,7 @@ func (c *Cron) runDueEntries() {
 				if entry.Next.After(now) || entry.Next.IsZero() || !entry.Active {
 					break
 				}
-				c.startJob(entry)
+				c.startJob(*entry)
 				entry.Prev = entry.Next
 				entry.Next = entry.Schedule.Next(now) // Compute new Next property for the Entry
 				toSortCount++
@@ -529,7 +529,7 @@ func removeEntry(entries *[]*Entry, id EntryID) {
 }
 
 // startJob runs the given job in a new goroutine.
-func (c *Cron) startJob(entry *Entry) {
+func (c *Cron) startJob(entry Entry) {
 	c.runningJobsCount.Add(1)
 	go func() {
 		defer func() {

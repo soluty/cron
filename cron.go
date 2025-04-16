@@ -47,8 +47,18 @@ var ErrJobAlreadyRunning = errors.New("job already running")
 
 type JobWrapper func(IntoJob) Job
 
-// Once creates a Job that will remove itself from the entries once executed
-func Once(job IntoJob) Job { return &OnceJob{castIntoJob(job)} }
+func OnceWrapper(c *Cron) JobWrapper {
+	return func(job IntoJob) Job {
+		return FuncJob(func(ctx context.Context, id EntryID) error {
+			c.Remove(id)
+			return castIntoJob(job).Run(ctx, id)
+		})
+	}
+}
+
+func Once(c *Cron, j IntoJob) Job {
+	return OnceWrapper(c)(j)
+}
 
 // SkipIfStillRunning skips an invocation of the Job if a previous invocation is still running.
 func SkipIfStillRunning(j IntoJob) Job {
@@ -162,8 +172,6 @@ func (e Entry) Job() any {
 		return j.Job6
 	case *Job7Wrapper:
 		return j.Job7
-	case *OnceJob:
-		return j.Job
 	default:
 		return e.job
 	}
@@ -395,22 +403,14 @@ func (c *Cron) runDueEntries() {
 		now := c.now()
 		c.entries.With(func(entries *[]*Entry) {
 			var toSortCount int
-			toRemove := make([]EntryID, 0)
 			for _, entry := range *entries {
 				if entry.Next.After(now) || entry.Next.IsZero() || !entry.Active {
 					break
 				}
 				c.startJob(entry)
-				if _, ok := entry.job.(*OnceJob); ok {
-					toRemove = append(toRemove, entry.ID)
-				} else {
-					entry.Prev = entry.Next
-					entry.Next = entry.Schedule.Next(now) // Compute new Next property for the Entry
-					toSortCount++
-				}
-			}
-			for _, id := range toRemove {
-				removeEntry(entries, id)
+				entry.Prev = entry.Next
+				entry.Next = entry.Schedule.Next(now) // Compute new Next property for the Entry
+				toSortCount++
 			}
 			utils.InsertionSortPartial(*entries, toSortCount, less)
 		})

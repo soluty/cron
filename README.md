@@ -99,7 +99,7 @@ func main() {
 
 	// When using cron.Once, the job will remove itself from the cron entries
 	// after being executed once
-	_, _ = c.AddJob("* * * * * *", cron.Once(func() {
+	_, _ = c.AddJob("* * * * * *", cron.Once(c, func() {
 		fmt.Println("Will only be executed once")
 	}))
 
@@ -113,7 +113,7 @@ func main() {
 	// You can use cron.Chain to chain wrappers to your job
 	_, _ = c.AddJob("* * * * * *", cron.Chain(func() {
 		fmt.Println("job with chained wrappers")
-	}, cron.TimeoutWrapper(time.Second), cron.Once))
+	}, cron.TimeoutWrapper(time.Second), cron.OnceWrapper(c)))
 
 	// Jitter adds some random delay before running the job
 	_, _ = c.AddJob("0 */5 * * * *", cron.WithJitter(time.Minute, func() {
@@ -121,10 +121,14 @@ func main() {
 	}))
 
 	// This job is disabled by default
-	_, _ = c.AddJob("* * * * * *", func() {
+	disabledID, _ := c.AddJob("* * * * * *", func() {
 		fmt.Println("this job is disabled by default")
 	}, cron.Disabled)
-	
+
+	// Job can be enabled/disabled using their ID
+	c.Enable(disabledID)
+	c.Disable(disabledID)
+
 	c.Run()
 }
 ```

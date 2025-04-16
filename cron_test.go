@@ -76,7 +76,7 @@ func TestOnceJob(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
 	cron.Start()
-	_, _ = cron.AddJob("* * * * * *", Once(baseJob{&calls}))
+	_, _ = cron.AddJob("* * * * * *", Once(cron, baseJob{&calls}))
 	_, _ = cron.AddJob("* * * * * *", baseJob{&calls})
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(2), calls.Load())

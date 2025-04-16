@@ -57,10 +57,6 @@ type Job7Wrapper struct{ Job7 }
 
 func (j *Job7Wrapper) Run(_ context.Context, id EntryID) error { return j.Job7.Run(id) }
 
-type OnceJob struct{ Job }
-
-func (j *OnceJob) Run(ctx context.Context, id EntryID) error { return j.Job.Run(ctx, id) }
-
 type IntoJob any
 
 func castIntoJob(v IntoJob) Job {

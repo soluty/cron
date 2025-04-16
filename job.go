@@ -316,13 +316,6 @@ func NWrapper(n int) JobWrapper {
 	}
 }
 
-func ScheduledTime(job func(t time.Time)) Job {
-	return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
-		job(e.Prev)
-		return nil
-	})
-}
-
 // N runs a job "n" times
 func N(n int, j IntoJob) Job {
 	return NWrapper(n)(j)

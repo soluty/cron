@@ -154,9 +154,9 @@ func main() {
 
 	// This is an example of how you can get the time
 	// the job was scheduled to run at
-	_, _ = c.AddJob("*/5 * * * * *", cron.ScheduledTime(func(scheduleTime time.Time) {
-		fmt.Println(scheduleTime.UnixNano(), time.Now().UnixNano())
-	}))
+	_, _ = c.AddJob("*/5 * * * * *", func(entry cron.Entry) {
+		fmt.Println(entry.Prev.UnixNano(), time.Now().UnixNano())
+	})
 
 	c.Run()
 }

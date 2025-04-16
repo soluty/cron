@@ -261,6 +261,13 @@ func less(e1, e2 *Entry) bool {
 	return e1.Next.Before(e2.Next)
 }
 
+// FuncJob is a wrapper that turns a func() into a cron.Job
+type FuncJob func(context.Context, *Cron, Entry) error
+
+func (f FuncJob) Run(ctx context.Context, c *Cron, e Entry) error { return f(ctx, c, e) }
+
+//-----------------------------------------------------------------------------
+
 // New returns a new Cron job runner, in the Local time zone.
 func New(opts ...Option) *Cron {
 	cfg := utils.BuildConfig(opts)
@@ -280,6 +287,97 @@ func New(opts ...Option) *Cron {
 	}
 }
 
+// Run the cron scheduler, or no-op if already running.
+func (c *Cron) Run() (started bool) {
+	return c.startWith(func() { c.run() }) // sync
+}
+
+// Start the cron scheduler in its own go-routine, or no-op if already started.
+func (c *Cron) Start() (started bool) {
+	return c.startWith(func() { go c.run() }) // async
+}
+
+// Stop stops the cron scheduler if it is running; otherwise it does nothing.
+// A context is returned so the caller can wait for running jobs to complete.
+func (c *Cron) Stop() <-chan struct{} {
+	return c.stop()
+}
+
+// AddJob adds a Job to the Cron to be run on the given schedule.
+func (c *Cron) AddJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
+	return c.addJob(spec, cmd, opts...)
+}
+
+// Schedule adds a Job to the Cron to be run on the given schedule.
+func (c *Cron) Schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
+	return c.schedule(schedule, cmd, opts...)
+}
+
+// AddEntry ...
+func (c *Cron) AddEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
+	return c.addEntry(entry, opts...)
+}
+
+// Enable ...
+func (c *Cron) Enable(id EntryID) { c.setEntryActive(id, true) }
+
+// Disable ...
+func (c *Cron) Disable(id EntryID) { c.setEntryActive(id, false) }
+
+// Entries returns a snapshot of the cron entries.
+func (c *Cron) Entries() (out []Entry) {
+	return c.getEntries()
+}
+
+// Entry returns a snapshot of the given entry, or nil if it couldn't be found.
+func (c *Cron) Entry(id EntryID) (out Entry, err error) {
+	return c.getEntry(id)
+}
+
+// Remove an entry from being run in the future.
+func (c *Cron) Remove(id EntryID) {
+	c.remove(id)
+}
+
+// RunNow allows the user to run a specific job now
+func (c *Cron) RunNow(id EntryID) {
+	c.runNow(id)
+}
+
+// Location gets the time zone location
+func (c *Cron) Location() *time.Location {
+	return c.getLocation()
+}
+
+// SetLocation sets a new location to use.
+// Re-set the "Next" values for all entries.
+// Re-sort entries and run due entries.
+func (c *Cron) SetLocation(newLoc *time.Location) {
+	c.setLocation(newLoc)
+}
+
+//-----------------------------------------------------------------------------
+
+func (c *Cron) startWith(runFunc func()) (started bool) {
+	if started = c.startRunning(); started {
+		runFunc()
+	}
+	return
+}
+
+func (c *Cron) stop() <-chan struct{} {
+	if !c.stopRunning() {
+		return nil
+	}
+	c.cancel()
+	ch := make(chan struct{})
+	go func() {
+		c.waitAllJobsCompleted()
+		close(ch)
+	}()
+	return ch
+}
+
 func (c *Cron) startRunning() bool {
 	return c.running.CompareAndSwap(false, true)
 }
@@ -290,22 +388,40 @@ func (c *Cron) isRunning() bool {
 	return c.running.Load()
 }
 
-// FuncJob is a wrapper that turns a func() into a cron.Job
-type FuncJob func(context.Context, *Cron, Entry) error
+func (c *Cron) runNow(id EntryID) {
+	if err := c.entries.WithE(func(entries *[]*Entry) error {
+		entry := utils.Find(*entries, func(e *Entry) bool { return e.ID == id })
+		if entry == nil {
+			return errors.New("not found")
+		}
+		(*entry).Next = c.now()
+		c.sortEntries(entries)
+		return nil
+	}); err != nil {
+		return
+	}
+	c.entriesUpdated()
+}
 
-func (f FuncJob) Run(ctx context.Context, c *Cron, e Entry) error { return f(ctx, c, e) }
+func (c *Cron) getLocation() *time.Location {
+	return c.location.Get()
+}
 
-// AddJob adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) AddJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
+func (c *Cron) setLocation(newLoc *time.Location) {
+	c.location.Set(newLoc)
+	c.setEntriesNext()
+	c.entriesUpdated()
+}
+
+func (c *Cron) addJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
 	schedule, err := Parse(spec)
 	if err != nil {
 		return "", err
 	}
-	return c.Schedule(schedule, cmd, opts...)
+	return c.schedule(schedule, cmd, opts...)
 }
 
-// Schedule adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) Schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
+func (c *Cron) schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
 	entry := Entry{
 		ID:       EntryID(uuid.New().String()),
 		Schedule: schedule,
@@ -313,11 +429,10 @@ func (c *Cron) Schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) (En
 		Active:   true,
 		Next:     schedule.Next(c.now()),
 	}
-	return c.AddEntry(entry, opts...)
+	return c.addEntry(entry, opts...)
 }
 
-// AddEntry ...
-func (c *Cron) AddEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
+func (c *Cron) addEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
 	utils.ApplyOptions(&entry, opts)
 	if c.entryExists(entry.ID) {
 		return "", ErrIDAlreadyUsed
@@ -326,10 +441,6 @@ func (c *Cron) AddEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
 	c.entriesUpdated()
 	return entry.ID, nil
 }
-
-func (c *Cron) Enable(id EntryID) { c.setEntryActive(id, true) }
-
-func (c *Cron) Disable(id EntryID) { c.setEntryActive(id, false) }
 
 func (c *Cron) setEntryActive(id EntryID, active bool) {
 	if err := c.entries.WithE(func(entries *[]*Entry) error {
@@ -360,14 +471,9 @@ func insertSorted(entries *[]*Entry, entry *Entry) {
 	(*entries)[i] = entry
 }
 
-// Entries returns a snapshot of the cron entries.
-func (c *Cron) Entries() (out []Entry) {
-	return c.getEntries()
-}
-
-// Entry returns a snapshot of the given entry, or nil if it couldn't be found.
-func (c *Cron) Entry(id EntryID) (out Entry, err error) {
-	return c.getEntry(id)
+func (c *Cron) remove(id EntryID) {
+	c.removeEntry(id)
+	c.entriesUpdated()
 }
 
 func (c *Cron) getEntries() (out []Entry) {
@@ -393,60 +499,6 @@ func (c *Cron) entryExists(id EntryID) bool {
 	return utils.Second(c.getEntry(id)) == nil
 }
 
-// Remove an entry from being run in the future.
-func (c *Cron) Remove(id EntryID) {
-	c.removeEntry(id)
-	c.entriesUpdated()
-}
-
-// Run the cron scheduler, or no-op if already running.
-func (c *Cron) Run() (started bool) {
-	return c.startWith(func() { c.run() }) // sync
-}
-
-// Start the cron scheduler in its own go-routine, or no-op if already started.
-func (c *Cron) Start() (started bool) {
-	return c.startWith(func() { go c.run() }) // async
-}
-
-func (c *Cron) startWith(runFunc func()) (started bool) {
-	if started = c.startRunning(); started {
-		runFunc()
-	}
-	return
-}
-
-// Stop stops the cron scheduler if it is running; otherwise it does nothing.
-// A context is returned so the caller can wait for running jobs to complete.
-func (c *Cron) Stop() <-chan struct{} {
-	if !c.stopRunning() {
-		return nil
-	}
-	c.cancel()
-	ch := make(chan struct{})
-	go func() {
-		c.waitAllJobsCompleted()
-		close(ch)
-	}()
-	return ch
-}
-
-func (c *Cron) runWithRecovery(entry Entry) {
-	defer func() {
-		if r := recover(); r != nil {
-			c.logger.Printf("%s\n", string(debug.Stack()))
-		}
-	}()
-	if err := entry.job.Run(c.ctx, c, entry); err != nil {
-		msg := fmt.Sprintf("error running job %s", entry.ID)
-		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
-		msg += " : " + err.Error()
-		c.logger.Print(msg)
-	}
-}
-
-// Run the scheduler. this is private just due to the need to synchronize
-// access to the 'running' state variable.
 func (c *Cron) run() {
 	for {
 		// Determine the next entry to run.
@@ -548,20 +600,18 @@ func (c *Cron) startJob(entry Entry) {
 	}()
 }
 
-// RunNow allows the user to run a specific job now
-func (c *Cron) RunNow(id EntryID) {
-	if err := c.entries.WithE(func(entries *[]*Entry) error {
-		entry := utils.Find(*entries, func(e *Entry) bool { return e.ID == id })
-		if entry == nil {
-			return errors.New("not found")
+func (c *Cron) runWithRecovery(entry Entry) {
+	defer func() {
+		if r := recover(); r != nil {
+			c.logger.Printf("%s\n", string(debug.Stack()))
 		}
-		(*entry).Next = c.now()
-		c.sortEntries(entries)
-		return nil
-	}); err != nil {
-		return
+	}()
+	if err := entry.job.Run(c.ctx, c, entry); err != nil {
+		msg := fmt.Sprintf("error running job %s", entry.ID)
+		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
+		msg += " : " + err.Error()
+		c.logger.Print(msg)
 	}
-	c.entriesUpdated()
 }
 
 func (c *Cron) signalJobCompleted() {
@@ -576,20 +626,6 @@ func (c *Cron) waitAllJobsCompleted() {
 		c.cond.Wait()
 	}
 	c.cond.L.Unlock()
-}
-
-// Location gets the time zone location
-func (c *Cron) Location() *time.Location {
-	return c.location.Get()
-}
-
-// SetLocation sets a new location to use.
-// Re-set the "Next" values for all entries.
-// Re-sort entries and run due entries.
-func (c *Cron) SetLocation(newLoc *time.Location) {
-	c.location.Set(newLoc)
-	c.setEntriesNext()
-	c.entriesUpdated()
 }
 
 // now returns current time in c location

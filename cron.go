@@ -77,12 +77,12 @@ func New(opts ...Option) *Cron {
 
 // Run the cron scheduler, or no-op if already running.
 func (c *Cron) Run() (started bool) {
-	return c.startWith(func() { c.run() }) // sync
+	return c.start()
 }
 
 // Start the cron scheduler in its own go-routine, or no-op if already started.
 func (c *Cron) Start() (started bool) {
-	return c.startWith(func() { go c.run() }) // async
+	return c.startAsync()
 }
 
 // Stop stops the cron scheduler if it is running; otherwise it does nothing.
@@ -151,6 +151,14 @@ func (c *Cron) GetNextTime() time.Time {
 }
 
 //-----------------------------------------------------------------------------
+
+func (c *Cron) start() (started bool) {
+	return c.startWith(func() { c.run() }) // sync
+}
+
+func (c *Cron) startAsync() (started bool) {
+	return c.startWith(func() { go c.run() }) // async
+}
 
 func (c *Cron) startWith(runFunc func()) (started bool) {
 	if started = c.startRunning(); started {

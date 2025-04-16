@@ -204,11 +204,12 @@ type Entry struct {
 	Next time.Time
 	// The last time this job was run. This is the zero time if the job has never been run.
 	Prev time.Time
-	// The Job to run.
-	job   Job
+	// Label to describe the job
 	Label string
-
+	// Either or not the job is currently active
 	Active bool
+	// The Job to run.
+	job Job
 }
 
 // Job returns the original job as it was before it was wrapped by the cron library

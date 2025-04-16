@@ -186,6 +186,16 @@ func WithID(id EntryID) func(entry *Entry) {
 	}
 }
 
+func WithNext(next time.Time) func(entry *Entry) {
+	return func(entry *Entry) {
+		entry.Next = next
+	}
+}
+
+func RunOnStart(entry *Entry) {
+	entry.Next = time.Now()
+}
+
 func Disabled(entry *Entry) {
 	entry.Active = false
 }
@@ -287,12 +297,12 @@ func (c *Cron) Schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) (En
 		Schedule: schedule,
 		job:      castIntoJob(cmd),
 		Active:   true,
+		Next:     schedule.Next(c.now()),
 	}
 	utils.ApplyOptions(entry, opts)
 	if c.entryExists(entry.ID) {
 		return "", ErrIDAlreadyUsed
 	}
-	entry.Next = entry.Schedule.Next(c.now())
 	c.entries.With(func(entries *[]*Entry) { insertSorted(entries, entry) })
 	c.entriesUpdated()
 	return entry.ID, nil

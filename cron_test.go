@@ -602,3 +602,56 @@ func TestLabelEntryOption(t *testing.T) {
 	entries := cron.Entries()
 	assert.Equal(t, "#1", entries[0].Label)
 }
+
+type jw1 struct{ calls *atomic.Int32 }
+
+func (j jw1) Run() { j.calls.Add(1) }
+
+type jw2 struct{ calls *atomic.Int32 }
+
+func (j jw2) Run(context.Context) { j.calls.Add(1) }
+
+type jw3 struct{ calls *atomic.Int32 }
+
+func (j jw3) Run(EntryID) { j.calls.Add(1) }
+
+type jw4 struct{ calls *atomic.Int32 }
+
+func (j jw4) Run(context.Context, EntryID) { j.calls.Add(1) }
+
+type jw5 struct{ calls *atomic.Int32 }
+
+func (j jw5) Run() error {
+	j.calls.Add(1)
+	return nil
+}
+
+type jw6 struct{ calls *atomic.Int32 }
+
+func (j jw6) Run(context.Context) error {
+	j.calls.Add(1)
+	return nil
+}
+
+type jw7 struct{ calls *atomic.Int32 }
+
+func (j jw7) Run(context.Context, EntryID) error {
+	j.calls.Add(1)
+	return nil
+}
+
+func TestWrappers(t *testing.T) {
+	var calls atomic.Int32
+	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
+	cron := New(WithClock(clock))
+	_, _ = cron.AddJob("* * * * * *", jw1{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw2{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw3{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw4{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw5{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw6{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw7{&calls})
+	cron.Start()
+	advanceAndCycle(cron, time.Second)
+	assert.Equal(t, int32(7), calls.Load())
+}

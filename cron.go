@@ -45,61 +45,6 @@ var ErrUnsupportedJobType = errors.New("unsupported job type")
 // ErrJobAlreadyRunning ...
 var ErrJobAlreadyRunning = errors.New("job already running")
 
-// Job is an interface for submitted cron jobs.
-type Job interface {
-	Run(context.Context, EntryID) error
-}
-
-type Job1 interface{ Run() }
-type Job2 interface{ Run(context.Context) }
-type Job3 interface{ Run(EntryID) }
-type Job4 interface {
-	Run(context.Context, EntryID)
-}
-type Job5 interface{ Run() error }
-type Job6 interface{ Run(context.Context) error }
-type Job7 interface{ Run(EntryID) error }
-
-type Job1Wrapper struct{ Job1 }
-
-func (j Job1Wrapper) Run(context.Context, EntryID) error {
-	j.Job1.Run()
-	return nil
-}
-
-type Job2Wrapper struct{ Job2 }
-
-func (j Job2Wrapper) Run(ctx context.Context, _ EntryID) error {
-	j.Job2.Run(ctx)
-	return nil
-}
-
-type Job3Wrapper struct{ Job3 }
-
-func (j Job3Wrapper) Run(_ context.Context, id EntryID) error {
-	j.Job3.Run(id)
-	return nil
-}
-
-type Job4Wrapper struct{ Job4 }
-
-func (j Job4Wrapper) Run(ctx context.Context, id EntryID) error {
-	j.Job4.Run(ctx, id)
-	return nil
-}
-
-type Job5Wrapper struct{ Job5 }
-
-func (j Job5Wrapper) Run(context.Context, EntryID) error { return j.Job5.Run() }
-
-type Job6Wrapper struct{ Job6 }
-
-func (j Job6Wrapper) Run(ctx context.Context, _ EntryID) error { return j.Job6.Run(ctx) }
-
-type Job7Wrapper struct{ Job7 }
-
-func (j Job7Wrapper) Run(_ context.Context, id EntryID) error { return j.Job7.Run(id) }
-
 type JobWrapper func(IntoJob) Job
 
 type OnceJob struct{ Job }
@@ -195,19 +140,19 @@ func castIntoJob(v IntoJob) Job {
 	case Job:
 		return j
 	case Job1:
-		return Job1Wrapper{j}
+		return &Job1Wrapper{j}
 	case Job2:
-		return Job2Wrapper{j}
+		return &Job2Wrapper{j}
 	case Job3:
-		return Job3Wrapper{j}
+		return &Job3Wrapper{j}
 	case Job4:
-		return Job4Wrapper{j}
+		return &Job4Wrapper{j}
 	case Job5:
-		return Job5Wrapper{j}
+		return &Job5Wrapper{j}
 	case Job6:
-		return Job6Wrapper{j}
+		return &Job6Wrapper{j}
 	case Job7:
-		return Job7Wrapper{j}
+		return &Job7Wrapper{j}
 	default:
 		panic(ErrUnsupportedJobType)
 	}
@@ -260,19 +205,19 @@ type Entry struct {
 // Job returns the original job as it was before it was wrapped by the cron library
 func (e Entry) Job() any {
 	switch j := e.job.(type) {
-	case Job1Wrapper:
+	case *Job1Wrapper:
 		return j.Job1
-	case Job2Wrapper:
+	case *Job2Wrapper:
 		return j.Job2
-	case Job3Wrapper:
+	case *Job3Wrapper:
 		return j.Job3
-	case Job4Wrapper:
+	case *Job4Wrapper:
 		return j.Job4
-	case Job5Wrapper:
+	case *Job5Wrapper:
 		return j.Job5
-	case Job6Wrapper:
+	case *Job6Wrapper:
 		return j.Job6
-	case Job7Wrapper:
+	case *Job7Wrapper:
 		return j.Job7
 	case *OnceJob:
 		return j.Job

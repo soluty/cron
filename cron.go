@@ -519,6 +519,22 @@ func (c *Cron) startJob(entry *Entry) {
 	}()
 }
 
+// RunNow allows the user to run a specific job now
+func (c *Cron) RunNow(id EntryID) {
+	if err := c.entries.WithE(func(entries *[]*Entry) error {
+		entry := utils.Find(*entries, func(e *Entry) bool { return e.ID == id })
+		if entry == nil {
+			return errors.New("not found")
+		}
+		(*entry).Next = c.now()
+		c.sortEntries(entries)
+		return nil
+	}); err != nil {
+		return
+	}
+	c.entriesUpdated()
+}
+
 func (c *Cron) signalJobCompleted() {
 	c.cond.L.Lock()
 	c.cond.Broadcast()

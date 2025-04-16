@@ -1,6 +1,11 @@
 package cron
 
-import "context"
+import (
+	"context"
+	"github.com/alaingilbert/cron/internal/utils"
+	"sync/atomic"
+	"time"
+)
 
 // Job is an interface for submitted cron jobs.
 type Job interface {
@@ -39,6 +44,11 @@ type Job15 interface {
 type Job16 interface {
 	Run(context.Context, *Cron, EntryID) error
 }
+
+// FuncJob is a wrapper that turns a func() into a cron.Job
+type FuncJob func(context.Context, *Cron, Entry) error
+
+func (f FuncJob) Run(ctx context.Context, c *Cron, e Entry) error { return f(ctx, c, e) }
 
 type Job1Wrapper struct{ Job1 }
 
@@ -283,4 +293,115 @@ func castIntoJob(v IntoJob) Job {
 	default:
 		panic(ErrUnsupportedJobType)
 	}
+}
+
+type JobWrapper func(IntoJob) Job
+
+func Once(job IntoJob) Job {
+	return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
+		c.Remove(e.ID)
+		return castIntoJob(job).Run(ctx, c, e)
+	})
+}
+
+func NWrapper(n int) JobWrapper {
+	return func(job IntoJob) Job {
+		var count atomic.Int32
+		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
+			if newCount := count.Add(1); int(newCount) == n {
+				c.Remove(e.ID)
+			}
+			return castIntoJob(job).Run(ctx, c, e)
+		})
+	}
+}
+
+func ScheduledTime(job func(t time.Time)) Job {
+	return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
+		entry, err := c.Entry(e.ID)
+		if err != nil {
+			return err
+		}
+		job(entry.Prev)
+		return nil
+	})
+}
+
+// N runs a job "n" times
+func N(n int, j IntoJob) Job {
+	return NWrapper(n)(j)
+}
+
+// SkipIfStillRunning skips an invocation of the Job if a previous invocation is still running.
+func SkipIfStillRunning(j IntoJob) Job {
+	var running atomic.Bool
+	return FuncJob(func(ctx context.Context, c *Cron, e Entry) (err error) {
+		if running.CompareAndSwap(false, true) {
+			defer running.Store(false)
+			err = castIntoJob(j).Run(ctx, c, e)
+		} else {
+			return ErrJobAlreadyRunning
+		}
+		return
+	})
+}
+
+// JitterWrapper add some random delay before running the job
+func JitterWrapper(duration time.Duration) JobWrapper {
+	return func(j IntoJob) Job {
+		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
+			delay := utils.RandDuration(0, max(duration, 0))
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			return castIntoJob(j).Run(ctx, c, e)
+		})
+	}
+}
+
+// WithJitter add some random delay before running the job
+func WithJitter(duration time.Duration, job IntoJob) Job {
+	return JitterWrapper(duration)(job)
+}
+
+// TimeoutWrapper automatically cancel the job context after a given duration
+func TimeoutWrapper(duration time.Duration) JobWrapper {
+	return func(j IntoJob) Job {
+		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
+			timeoutCtx, cancel := context.WithTimeout(ctx, duration)
+			defer cancel()
+			return castIntoJob(j).Run(timeoutCtx, c, e)
+		})
+	}
+}
+
+// WithTimeout ...
+// `_, _ = cron.AddJob("* * * * * *", cron.WithTimeout(time.Second, func(ctx context.Context) { ... }))`
+func WithTimeout(d time.Duration, job IntoJob) Job {
+	return TimeoutWrapper(d)(job)
+}
+
+func DeadlineWrapper(deadline time.Time) JobWrapper {
+	return func(j IntoJob) Job {
+		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
+			deadlineCtx, cancel := context.WithDeadline(ctx, deadline)
+			defer cancel()
+			return castIntoJob(j).Run(deadlineCtx, c, e)
+		})
+	}
+}
+
+func WithDeadline(deadline time.Time, job IntoJob) Job {
+	return DeadlineWrapper(deadline)(job)
+}
+
+// Chain `Chain(j, w1, w2, w3)` -> `w3(w2(w1(j)))`
+func Chain(j IntoJob, wrappers ...JobWrapper) Job {
+	job := castIntoJob(j)
+	for _, w := range wrappers {
+		job = w(job)
+	}
+	return job
 }

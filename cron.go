@@ -303,18 +303,23 @@ func (c *Cron) AddJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, e
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
 func (c *Cron) Schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
-	entry := &Entry{
+	entry := Entry{
 		ID:       EntryID(uuid.New().String()),
 		Schedule: schedule,
 		job:      castIntoJob(cmd),
 		Active:   true,
 		Next:     schedule.Next(c.now()),
 	}
-	utils.ApplyOptions(entry, opts)
+	return c.AddEntry(entry, opts...)
+}
+
+// AddEntry ...
+func (c *Cron) AddEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
+	utils.ApplyOptions(&entry, opts)
 	if c.entryExists(entry.ID) {
 		return "", ErrIDAlreadyUsed
 	}
-	c.entries.With(func(entries *[]*Entry) { insertSorted(entries, entry) })
+	c.entries.With(func(entries *[]*Entry) { insertSorted(entries, &entry) })
 	c.entriesUpdated()
 	return entry.ID, nil
 }

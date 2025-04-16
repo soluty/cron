@@ -144,6 +144,12 @@ func (c *Cron) SetLocation(newLoc *time.Location) {
 	c.setLocation(newLoc)
 }
 
+// GetNextTime returns the next time a job is scheduled to be executed
+// If no job is scheduled to be executed, the Zero time is returned
+func (c *Cron) GetNextTime() time.Time {
+	return c.getNextTime()
+}
+
 //-----------------------------------------------------------------------------
 
 func (c *Cron) startWith(runFunc func()) (started bool) {
@@ -299,15 +305,22 @@ func (c *Cron) run() {
 	}
 }
 
-func (c *Cron) getNextDelay() (out time.Duration) {
+func (c *Cron) getNextTime() (out time.Time) {
 	c.entries.RWith(func(entries []*Entry) {
-		if len(entries) == 0 || entries[0].Next.IsZero() {
-			out = 100_000 * time.Hour // If there are no entries yet, just sleep - it still handles new entries and stop requests.
-		} else {
-			out = entries[0].Next.Sub(c.now())
+		if len(entries) > 0 && !entries[0].Next.IsZero() {
+			out = entries[0].Next
 		}
 	})
 	return
+}
+
+func (c *Cron) getNextDelay() (out time.Duration) {
+	nextTime := c.getNextTime()
+	if nextTime.IsZero() {
+		return 100_000 * time.Hour // If there are no entries yet, just sleep - it still handles new entries and stop requests.
+	} else {
+		return nextTime.Sub(c.now())
+	}
 }
 
 // trigger an update of the entries in the run loop

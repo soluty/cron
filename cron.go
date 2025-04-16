@@ -75,13 +75,13 @@ func NWrapper(c *Cron, n int) JobWrapper {
 	}
 }
 
-func ScheduledTime(c *Cron, fn func(t time.Time)) Job {
+func ScheduledTime(c *Cron, job func(t time.Time)) Job {
 	return FuncJob(func(ctx context.Context, id EntryID) error {
 		entry, err := c.Entry(id)
 		if err != nil {
 			return err
 		}
-		fn(entry.Prev)
+		job(entry.Prev)
 		return nil
 	})
 }

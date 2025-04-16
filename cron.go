@@ -243,14 +243,15 @@ func (c *Cron) Disable(id EntryID) { c.setEntryActive(id, false) }
 
 func (c *Cron) setEntryActive(id EntryID, active bool) {
 	if err := c.entries.WithE(func(entries *[]*Entry) error {
-		if entry := utils.Find(*entries, func(e *Entry) bool { return e.ID == id }); entry != nil {
-			if (*entry).Active != active {
-				(*entry).Active = active
-				sort.Slice(*entries, func(i, j int) bool { return less((*entries)[i], (*entries)[j]) })
-			}
-		} else {
+		entry := utils.Find(*entries, func(e *Entry) bool { return e.ID == id })
+		if entry == nil {
 			return errors.New("not found")
 		}
+		if (*entry).Active == active {
+			return errors.New("unchanged")
+		}
+		(*entry).Active = active
+		sort.Slice(*entries, func(i, j int) bool { return less((*entries)[i], (*entries)[j]) })
 		return nil
 	}); err != nil {
 		return

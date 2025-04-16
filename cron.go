@@ -76,20 +76,14 @@ func New(opts ...Option) *Cron {
 }
 
 // Run the cron scheduler, or no-op if already running.
-func (c *Cron) Run() (started bool) {
-	return c.start()
-}
+func (c *Cron) Run() (started bool) { return c.start() }
 
 // Start the cron scheduler in its own go-routine, or no-op if already started.
-func (c *Cron) Start() (started bool) {
-	return c.startAsync()
-}
+func (c *Cron) Start() (started bool) { return c.startAsync() }
 
 // Stop stops the cron scheduler if it is running; otherwise it does nothing.
 // A context is returned so the caller can wait for running jobs to complete.
-func (c *Cron) Stop() <-chan struct{} {
-	return c.stop()
-}
+func (c *Cron) Stop() <-chan struct{} { return c.stop() }
 
 // AddJob adds a Job to the Cron to be run on the given schedule.
 func (c *Cron) AddJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
@@ -113,42 +107,28 @@ func (c *Cron) Enable(id EntryID) { c.setEntryActive(id, true) }
 func (c *Cron) Disable(id EntryID) { c.setEntryActive(id, false) }
 
 // Entries returns a snapshot of the cron entries.
-func (c *Cron) Entries() (out []Entry) {
-	return c.getEntries()
-}
+func (c *Cron) Entries() (out []Entry) { return c.getEntries() }
 
 // Entry returns a snapshot of the given entry, or nil if it couldn't be found.
-func (c *Cron) Entry(id EntryID) (out Entry, err error) {
-	return c.getEntry(id)
-}
+func (c *Cron) Entry(id EntryID) (out Entry, err error) { return c.getEntry(id) }
 
 // Remove an entry from being run in the future.
-func (c *Cron) Remove(id EntryID) {
-	c.remove(id)
-}
+func (c *Cron) Remove(id EntryID) { c.remove(id) }
 
 // RunNow allows the user to run a specific job now
-func (c *Cron) RunNow(id EntryID) {
-	c.runNow(id)
-}
+func (c *Cron) RunNow(id EntryID) { c.runNow(id) }
 
 // Location gets the time zone location
-func (c *Cron) Location() *time.Location {
-	return c.getLocation()
-}
+func (c *Cron) Location() *time.Location { return c.getLocation() }
 
 // SetLocation sets a new location to use.
 // Re-set the "Next" values for all entries.
 // Re-sort entries and run due entries.
-func (c *Cron) SetLocation(newLoc *time.Location) {
-	c.setLocation(newLoc)
-}
+func (c *Cron) SetLocation(newLoc *time.Location) { c.setLocation(newLoc) }
 
 // GetNextTime returns the next time a job is scheduled to be executed
 // If no job is scheduled to be executed, the Zero time is returned
-func (c *Cron) GetNextTime() time.Time {
-	return c.getNextTime()
-}
+func (c *Cron) GetNextTime() time.Time { return c.getNextTime() }
 
 //-----------------------------------------------------------------------------
 

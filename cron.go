@@ -276,7 +276,6 @@ func (c *Cron) getEntries() (out []Entry) {
 
 func (c *Cron) run() {
 	for {
-		// Determine the next entry to run.
 		delay := c.getNextDelay()
 		var updated context.CancelFunc
 		select {

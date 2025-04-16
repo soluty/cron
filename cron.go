@@ -213,7 +213,9 @@ func (c *Cron) schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) (En
 }
 
 func (c *Cron) addEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
-	utils.ApplyOptions(&entry, opts)
+	for _, opt := range opts {
+		opt(c, &entry)
+	}
 	if c.entryExists(entry.ID) {
 		return "", ErrIDAlreadyUsed
 	}

@@ -158,7 +158,7 @@ func main() {
 	// You can run a job as soon as the cron is started with cron.RunOnStart
 	_, _ = c.AddJob("*/10 * * * * *", func() {
 		fmt.Println("this job runs as soon as cron is started, then at every 10th seconds", time.Now())
-	}, cron.RunOnStart(c))
+	}, cron.RunOnStart)
 
 	// This is an example of how you can get the time
 	// the job was scheduled to run at

@@ -85,32 +85,30 @@ func (e Entry) Job() any {
 	}
 }
 
-type EntryOption func(*Entry)
+type EntryOption func(*Cron, *Entry)
 
-func Label(label string) func(entry *Entry) {
-	return func(entry *Entry) {
+func Label(label string) func(*Cron, *Entry) {
+	return func(_ *Cron, entry *Entry) {
 		entry.Label = label
 	}
 }
 
-func WithID(id EntryID) func(entry *Entry) {
-	return func(entry *Entry) {
+func WithID(id EntryID) func(*Cron, *Entry) {
+	return func(_ *Cron, entry *Entry) {
 		entry.ID = id
 	}
 }
 
-func WithNext(next time.Time) func(entry *Entry) {
-	return func(entry *Entry) {
+func WithNext(next time.Time) func(*Cron, *Entry) {
+	return func(_ *Cron, entry *Entry) {
 		entry.Next = next
 	}
 }
 
-func RunOnStart(c *Cron) func(entry *Entry) {
-	return func(entry *Entry) {
-		entry.Next = c.now()
-	}
+func RunOnStart(c *Cron, entry *Entry) {
+	entry.Next = c.now()
 }
 
-func Disabled(entry *Entry) {
+func Disabled(_ *Cron, entry *Entry) {
 	entry.Active = false
 }

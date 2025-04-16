@@ -909,7 +909,7 @@ func TestEntryOption(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
 	cron := New(WithClock(clock))
 	_, _ = cron.AddJob("1 1 * * * *", baseJob{&calls}, WithNext(clock.Now()))
-	_, _ = cron.AddJob("1 1 * * * *", baseJob{&calls}, RunOnStart(cron))
+	_, _ = cron.AddJob("1 1 * * * *", baseJob{&calls}, RunOnStart)
 	disabledID, _ := cron.AddJob("1 1 * * * *", baseJob{&calls}, Disabled)
 	cron.Start()
 	assert.False(t, utils.First(cron.Entry(disabledID)).Active)

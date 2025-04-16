@@ -572,6 +572,15 @@ func TestSetEntriesNext(t *testing.T) {
 	assert.Equal(t, int32(1), calls.Load())
 }
 
+func TestWithID(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 58, 0, time.UTC))
+	cron := New(WithClock(clock))
+	_, err := cron.AddJob("* * * * * *", func() {}, WithID("some_id"))
+	assert.NoError(t, err)
+	_, err = cron.AddJob("* * * * * *", func() {}, WithID("some_id"))
+	assert.ErrorIs(t, err, ErrIDAlreadyUsed)
+}
+
 func TestNextIDIsThreadSafe(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))

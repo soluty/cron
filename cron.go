@@ -45,6 +45,9 @@ var ErrUnsupportedJobType = errors.New("unsupported job type")
 // ErrJobAlreadyRunning ...
 var ErrJobAlreadyRunning = errors.New("job already running")
 
+// ErrIDAlreadyUsed ...
+var ErrIDAlreadyUsed = errors.New("id already used")
+
 type JobWrapper func(IntoJob) Job
 
 func OnceWrapper(c *Cron) JobWrapper {
@@ -166,6 +169,12 @@ func Label(label string) func(entry *Entry) {
 	}
 }
 
+func WithID(id EntryID) func(entry *Entry) {
+	return func(entry *Entry) {
+		entry.ID = id
+	}
+}
+
 func Disabled(entry *Entry) {
 	entry.Active = false
 }
@@ -269,8 +278,8 @@ func (c *Cron) Schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) (En
 		Active:   true,
 	}
 	utils.ApplyOptions(entry, opts)
-	if _, err := c.Entry(entry.ID); err == nil {
-		return "", errors.New("uuid already exists")
+	if c.entryExists(entry.ID) {
+		return "", ErrIDAlreadyUsed
 	}
 	entry.Next = entry.Schedule.Next(c.now())
 	c.entries.With(func(entries *[]*Entry) { insertSorted(entries, entry) })
@@ -313,6 +322,15 @@ func insertSorted(entries *[]*Entry, entry *Entry) {
 
 // Entries returns a snapshot of the cron entries.
 func (c *Cron) Entries() (out []Entry) {
+	return c.getEntries()
+}
+
+// Entry returns a snapshot of the given entry, or nil if it couldn't be found.
+func (c *Cron) Entry(id EntryID) (out Entry, err error) {
+	return c.getEntry(id)
+}
+
+func (c *Cron) getEntries() (out []Entry) {
 	c.entries.RWith(func(entries []*Entry) {
 		out = make([]Entry, len(entries))
 		for i, e := range entries {
@@ -322,14 +340,17 @@ func (c *Cron) Entries() (out []Entry) {
 	return
 }
 
-// Entry returns a snapshot of the given entry, or nil if it couldn't be found.
-func (c *Cron) Entry(id EntryID) (out Entry, err error) {
-	for _, entry := range c.Entries() {
+func (c *Cron) getEntry(id EntryID) (out Entry, err error) {
+	for _, entry := range c.getEntries() {
 		if entry.ID == id {
 			return entry, nil
 		}
 	}
 	return out, ErrEntryNotFound
+}
+
+func (c *Cron) entryExists(id EntryID) bool {
+	return utils.Second(c.getEntry(id)) == nil
 }
 
 // Remove an entry from being run in the future.

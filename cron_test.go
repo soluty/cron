@@ -1,8 +1,11 @@
 package cron
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"github.com/alaingilbert/cron/internal/utils"
 	"io"
 	"log"
 	"sync"
@@ -69,6 +72,51 @@ func TestJobPanicRecovery(t *testing.T) {
 	cron.Start()
 	_, _ = cron.AddJob("* * * * * ?", PanicJob{})
 	advanceAndCycle(cron, time.Second)
+}
+
+func TestLogError(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	buf := bytes.NewBuffer(nil)
+	cron := New(WithClock(clock), WithLogger(log.New(buf, "", log.LstdFlags)))
+	_, _ = cron.AddJob("* * * * * ?", func() error { return errors.New("some error") })
+	cron.Start()
+	advanceAndCycle(cron, time.Second)
+	assert.Contains(t, buf.String(), "some error")
+}
+
+func TestSetEntryActive(t *testing.T) {
+	var calls atomic.Int32
+	clock := clockwork.NewFakeClock()
+	cron := New(WithClock(clock))
+	id, _ := cron.AddJob("* * * * * ?", baseJob{&calls})
+	cron.Start()
+	assert.True(t, utils.First(cron.Entry(id)).Active)
+	cron.Disable(id)
+	assert.False(t, utils.First(cron.Entry(id)).Active)
+	cron.Enable(id)
+	cron.Enable(id) // unchanged
+	assert.True(t, utils.First(cron.Entry(id)).Active)
+	cron.Enable("not-exist") // not found
+}
+
+func TestRunNow(t *testing.T) {
+	var calls atomic.Int32
+	clock := clockwork.NewFakeClock()
+	cron := New(WithClock(clock))
+	id, _ := cron.AddJob("1 1 * * * *", baseJob{&calls})
+	cron.Start()
+	cron.RunNow(id)
+	cron.RunNow("not-exist")
+	advanceAndCycle(cron, time.Second)
+	assert.Equal(t, int32(1), calls.Load())
+}
+
+func TestGetNextTime(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
+	cron := New(WithClock(clock))
+	_, _ = cron.AddJob("1 1 * * * *", func() {})
+	cron.Start()
+	assert.Equal(t, clock.Now().Add(61*time.Second), cron.GetNextTime())
 }
 
 func TestOnceJob(t *testing.T) {
@@ -753,31 +801,140 @@ func (j jw23) Run(context.Context, *Cron, Entry) {
 func TestWrappers(t *testing.T) {
 	var calls atomic.Int32
 	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
+	wrapVoid := func(any) error { return nil }
 	cron := New(WithClock(clock))
-	_, _ = cron.AddJob("* * * * * *", jw1{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw2{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw3{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw4{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw5{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw6{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw7{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw8{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw9{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw10{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw11{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw12{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw13{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw14{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw15{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw16{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw17{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw18{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw19{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw20{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw21{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw22{&calls})
-	_, _ = cron.AddJob("* * * * * *", jw23{&calls})
+	fn1ID, _ := cron.AddJob("* * * * * *", func() { calls.Add(1) })
+	_, _ = cron.AddJob("* * * * * *", func(context.Context) { calls.Add(1) })
+	_, _ = cron.AddJob("* * * * * *", func(*Cron) { calls.Add(1) })
+	_, _ = cron.AddJob("* * * * * *", func(Entry) { calls.Add(1) })
+	_, _ = cron.AddJob("* * * * * *", func(EntryID) { calls.Add(1) })
+	_, _ = cron.AddJob("* * * * * *", func(context.Context, EntryID) { calls.Add(1) })
+	_, _ = cron.AddJob("* * * * * *", func(context.Context, Entry) { calls.Add(1) })
+	_, _ = cron.AddJob("* * * * * *", func(context.Context, *Cron) { calls.Add(1) })
+	_, _ = cron.AddJob("* * * * * *", func(*Cron, EntryID) { calls.Add(1) })
+	_, _ = cron.AddJob("* * * * * *", func(*Cron, Entry) { calls.Add(1) })
+	_, _ = cron.AddJob("* * * * * *", func(context.Context, *Cron, EntryID) { calls.Add(1) })
+	_, _ = cron.AddJob("* * * * * *", func(context.Context, *Cron, Entry) { calls.Add(1) })
+	_, _ = cron.AddJob("* * * * * *", func() error { return wrapVoid(calls.Add(1)) })
+	_, _ = cron.AddJob("* * * * * *", func(context.Context) error { return wrapVoid(calls.Add(1)) })
+	_, _ = cron.AddJob("* * * * * *", func(*Cron) error { return wrapVoid(calls.Add(1)) })
+	_, _ = cron.AddJob("* * * * * *", func(Entry) error { return wrapVoid(calls.Add(1)) })
+	_, _ = cron.AddJob("* * * * * *", func(EntryID) error { return wrapVoid(calls.Add(1)) })
+	_, _ = cron.AddJob("* * * * * *", func(context.Context, EntryID) error { return wrapVoid(calls.Add(1)) })
+	_, _ = cron.AddJob("* * * * * *", func(context.Context, Entry) error { return wrapVoid(calls.Add(1)) })
+	_, _ = cron.AddJob("* * * * * *", func(context.Context, *Cron) error { return wrapVoid(calls.Add(1)) })
+	_, _ = cron.AddJob("* * * * * *", func(*Cron, EntryID) error { return wrapVoid(calls.Add(1)) })
+	_, _ = cron.AddJob("* * * * * *", func(*Cron, Entry) error { return wrapVoid(calls.Add(1)) })
+	_, _ = cron.AddJob("* * * * * *", func(context.Context, *Cron, EntryID) error { return wrapVoid(calls.Add(1)) })
+	_, _ = cron.AddJob("* * * * * *", func(context.Context, *Cron, Entry) error { return wrapVoid(calls.Add(1)) })
+	jw1ID, _ := cron.AddJob("* * * * * *", jw1{&calls})
+	jw2ID, _ := cron.AddJob("* * * * * *", jw2{&calls})
+	jw3ID, _ := cron.AddJob("* * * * * *", jw3{&calls})
+	jw4ID, _ := cron.AddJob("* * * * * *", jw4{&calls})
+	jw5ID, _ := cron.AddJob("* * * * * *", jw5{&calls})
+	jw6ID, _ := cron.AddJob("* * * * * *", jw6{&calls})
+	jw7ID, _ := cron.AddJob("* * * * * *", jw7{&calls})
+	jw8ID, _ := cron.AddJob("* * * * * *", jw8{&calls})
+	jw9ID, _ := cron.AddJob("* * * * * *", jw9{&calls})
+	jw10ID, _ := cron.AddJob("* * * * * *", jw10{&calls})
+	jw11ID, _ := cron.AddJob("* * * * * *", jw11{&calls})
+	jw12ID, _ := cron.AddJob("* * * * * *", jw12{&calls})
+	jw13ID, _ := cron.AddJob("* * * * * *", jw13{&calls})
+	jw14ID, _ := cron.AddJob("* * * * * *", jw14{&calls})
+	jw15ID, _ := cron.AddJob("* * * * * *", jw15{&calls})
+	jw16ID, _ := cron.AddJob("* * * * * *", jw16{&calls})
+	jw17ID, _ := cron.AddJob("* * * * * *", jw17{&calls})
+	jw18ID, _ := cron.AddJob("* * * * * *", jw18{&calls})
+	jw19ID, _ := cron.AddJob("* * * * * *", jw19{&calls})
+	jw20ID, _ := cron.AddJob("* * * * * *", jw20{&calls})
+	jw21ID, _ := cron.AddJob("* * * * * *", jw21{&calls})
+	jw22ID, _ := cron.AddJob("* * * * * *", jw22{&calls})
+	jw23ID, _ := cron.AddJob("* * * * * *", jw23{&calls})
+	assert.Panics(t, func() { _, _ = cron.AddJob("* * * * * *", 1) }, ErrUnsupportedJobType)
+	cron.Start()
+	_, okFn1 := utils.First(cron.Entry(fn1ID)).Job().(Job)
+	_, ok1 := utils.First(cron.Entry(jw1ID)).Job().(jw1)
+	_, ok2 := utils.First(cron.Entry(jw2ID)).Job().(jw2)
+	_, ok3 := utils.First(cron.Entry(jw3ID)).Job().(jw3)
+	_, ok4 := utils.First(cron.Entry(jw4ID)).Job().(jw4)
+	_, ok5 := utils.First(cron.Entry(jw5ID)).Job().(jw5)
+	_, ok6 := utils.First(cron.Entry(jw6ID)).Job().(jw6)
+	_, ok7 := utils.First(cron.Entry(jw7ID)).Job().(jw7)
+	_, ok8 := utils.First(cron.Entry(jw8ID)).Job().(jw8)
+	_, ok9 := utils.First(cron.Entry(jw9ID)).Job().(jw9)
+	_, ok10 := utils.First(cron.Entry(jw10ID)).Job().(jw10)
+	_, ok11 := utils.First(cron.Entry(jw11ID)).Job().(jw11)
+	_, ok12 := utils.First(cron.Entry(jw12ID)).Job().(jw12)
+	_, ok13 := utils.First(cron.Entry(jw13ID)).Job().(jw13)
+	_, ok14 := utils.First(cron.Entry(jw14ID)).Job().(jw14)
+	_, ok15 := utils.First(cron.Entry(jw15ID)).Job().(jw15)
+	_, ok16 := utils.First(cron.Entry(jw16ID)).Job().(jw16)
+	_, ok17 := utils.First(cron.Entry(jw17ID)).Job().(jw17)
+	_, ok18 := utils.First(cron.Entry(jw18ID)).Job().(jw18)
+	_, ok19 := utils.First(cron.Entry(jw19ID)).Job().(jw19)
+	_, ok20 := utils.First(cron.Entry(jw20ID)).Job().(jw20)
+	_, ok21 := utils.First(cron.Entry(jw21ID)).Job().(jw21)
+	_, ok22 := utils.First(cron.Entry(jw22ID)).Job().(jw22)
+	_, ok23 := utils.First(cron.Entry(jw23ID)).Job().(jw23)
+	assert.True(t, okFn1)
+	assert.True(t, ok1)
+	assert.True(t, ok2)
+	assert.True(t, ok3)
+	assert.True(t, ok4)
+	assert.True(t, ok5)
+	assert.True(t, ok6)
+	assert.True(t, ok7)
+	assert.True(t, ok8)
+	assert.True(t, ok9)
+	assert.True(t, ok10)
+	assert.True(t, ok11)
+	assert.True(t, ok12)
+	assert.True(t, ok13)
+	assert.True(t, ok14)
+	assert.True(t, ok15)
+	assert.True(t, ok16)
+	assert.True(t, ok17)
+	assert.True(t, ok18)
+	assert.True(t, ok19)
+	assert.True(t, ok20)
+	assert.True(t, ok21)
+	assert.True(t, ok22)
+	assert.True(t, ok23)
+	advanceAndCycle(cron, time.Second)
+	assert.Equal(t, int32(47), calls.Load())
+}
+
+func TestEntryOption(t *testing.T) {
+	var calls atomic.Int32
+	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
+	cron := New(WithClock(clock))
+	_, _ = cron.AddJob("1 1 * * * *", baseJob{&calls}, WithNext(clock.Now()))
+	_, _ = cron.AddJob("1 1 * * * *", baseJob{&calls}, RunOnStart(cron))
+	disabledID, _ := cron.AddJob("1 1 * * * *", baseJob{&calls}, Disabled)
+	cron.Start()
+	assert.False(t, utils.First(cron.Entry(disabledID)).Active)
+	advanceAndCycle(cron, time.Second)
+	assert.Equal(t, int32(2), calls.Load())
+}
+
+func TestWithContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cron := New(WithContext(ctx))
+	_, _ = cron.AddJob("* * * * * ?", func() {})
+	cancel()
+	cron.Run()
+	assert.True(t, true)
+}
+
+func TestAddEntry(t *testing.T) {
+	var calls atomic.Int32
+	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
+	cron := New(WithClock(clock))
+	id, _ := cron.AddJob("* * * * * ?", baseJob{&calls})
+	entry, _ := cron.Entry(id)
+	entry.ID = "new-id"
+	_, _ = cron.AddEntry(entry)
 	cron.Start()
 	advanceAndCycle(cron, time.Second)
-	assert.Equal(t, int32(23), calls.Load())
+	assert.Equal(t, int32(2), calls.Load())
 }

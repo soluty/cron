@@ -151,3 +151,12 @@ func TestSome(t *testing.T) {
 	assert.True(t, Some([]int{1, 2, 3}, func(el int) bool { return el == 1 }))
 	assert.False(t, Some([]int{1, 2, 3}, func(el int) bool { return el == 4 }))
 }
+
+func TestEnsureRange(t *testing.T) {
+	min1, max1 := EnsureRange(1, 3)
+	assert.Equal(t, int64(1), min1)
+	assert.Equal(t, int64(3), max1)
+	min2, max2 := EnsureRange(3, 1)
+	assert.Equal(t, int64(1), min2)
+	assert.Equal(t, int64(3), max2)
+}

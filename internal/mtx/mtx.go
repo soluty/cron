@@ -123,7 +123,10 @@ func (s *RWMtxSlice[T]) Clear() {
 // shifting all elements after it to the left
 // Panics if index is out of bounds
 func (s *RWMtxSlice[T]) Remove(i int) (out T) {
-	s.With(func(v *[]T) { out, *v = (*v)[i], (*v)[:i+copy((*v)[i:], (*v)[i+1:])] })
+	s.With(func(v *[]T) {
+		out = (*v)[i]
+		*v = (*v)[:i+copy((*v)[i:], (*v)[i+1:])]
+	})
 	return
 }
 

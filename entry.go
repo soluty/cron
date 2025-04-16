@@ -66,6 +66,20 @@ func (e Entry) Job() any {
 		return j.Job15
 	case *Job16Wrapper:
 		return j.Job16
+	case *Job17Wrapper:
+		return j.Job17
+	case *Job18Wrapper:
+		return j.Job18
+	case *Job19Wrapper:
+		return j.Job19
+	case *Job20Wrapper:
+		return j.Job20
+	case *Job21Wrapper:
+		return j.Job21
+	case *Job22Wrapper:
+		return j.Job22
+	case *Job23Wrapper:
+		return j.Job23
 	default:
 		return e.job
 	}
@@ -91,8 +105,10 @@ func WithNext(next time.Time) func(entry *Entry) {
 	}
 }
 
-func RunOnStart(entry *Entry) {
-	entry.Next = time.Now()
+func RunOnStart(c *Cron) func(entry *Entry) {
+	return func(entry *Entry) {
+		entry.Next = c.now()
+	}
 }
 
 func Disabled(entry *Entry) {

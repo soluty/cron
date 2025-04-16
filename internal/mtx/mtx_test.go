@@ -2,6 +2,7 @@ package mtx
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
 )
@@ -103,4 +104,75 @@ func TestRWMtx_WithE(t *testing.T) {
 	if err == nil || err.Error() != "fail" {
 		t.Errorf("expected error")
 	}
+}
+
+func TestRWMtxSlice_Append(t *testing.T) {
+	var s RWMtxSlice[int]
+	s.Append(1, 2, 3)
+	assert.Equal(t, []int{1, 2, 3}, s.Clone())
+}
+
+func TestRWMtxSlice_Unshift(t *testing.T) {
+	var s RWMtxSlice[int]
+	s.Append(2, 3)
+	s.Unshift(1)
+	assert.Equal(t, []int{1, 2, 3}, s.Clone())
+}
+
+func TestRWMtxSlice_Remove(t *testing.T) {
+	var s RWMtxSlice[int]
+	s.Append(1, 2, 3)
+	v := s.Remove(1)
+	assert.Equal(t, 2, v)
+	assert.Equal(t, []int{1, 3}, s.Clone())
+}
+
+func TestRWMtxSlice_RemoveOutOfBounds(t *testing.T) {
+	var s RWMtxSlice[int]
+	s.Append(1, 2, 3)
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic on out-of-bounds Remove, got none")
+		}
+	}()
+	_ = s.Remove(5)
+}
+
+func TestRWMtxSlice_Clear(t *testing.T) {
+	var s RWMtxSlice[int]
+	s.Append(1, 2, 3)
+	s.Clear()
+	assert.Equal(t, 0, s.Len())
+	assert.Equal(t, []int{}, s.Clone())
+}
+
+func TestRWMtxSlice_Clone(t *testing.T) {
+	var s RWMtxSlice[int]
+	s.Append(1, 2, 3)
+
+	clone := s.Clone()
+	assert.Equal(t, []int{1, 2, 3}, clone)
+
+	// Ensure it's a deep copy
+	clone[0] = 99
+	assert.Equal(t, []int{1, 2, 3}, s.Clone())
+}
+
+func TestRWMtxSlice_Each(t *testing.T) {
+	var s RWMtxSlice[int]
+	s.Append(1, 2, 3)
+
+	var out []int
+	s.Each(func(v int) {
+		out = append(out, v)
+	})
+
+	assert.Equal(t, []int{1, 2, 3}, out)
+}
+
+func TestRWMtxSlice_Len(t *testing.T) {
+	var s RWMtxSlice[string]
+	s.Append("a", "b", "c")
+	assert.Equal(t, 3, s.Len())
 }

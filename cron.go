@@ -261,9 +261,6 @@ func (c *Cron) run() {
 		if updated != nil {
 			updated()
 		}
-		if c.ctx.Err() != nil {
-			return
-		}
 	}
 }
 

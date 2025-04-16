@@ -215,6 +215,8 @@ var standardParser = NewParser(
 	Minute | Hour | Dom | Month | Dow | Descriptor,
 )
 
+var SecondParser = NewParser(Second | Minute | Hour | Dom | Month | DowOptional | Descriptor)
+
 // ParseStandard returns a new crontab schedule representing the given
 // standardSpec (https://en.wikipedia.org/wiki/Cron). It requires 5 entries
 // representing: minute, hour, day of month, month and day of week, in that

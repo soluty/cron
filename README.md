@@ -35,6 +35,7 @@ func main() {
 	l := log.New(os.Stdout, "", log.LstdFlags)
 
 	c := cron.New(
+		cron.WithParser(cron.SecondParser),
 		cron.WithContext(appCtx), // Can provide a custom context
 		cron.WithLogger(l),       // Can provide a custom logger
 	)

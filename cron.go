@@ -7,6 +7,7 @@ import (
 	"github.com/alaingilbert/clockwork"
 	"github.com/alaingilbert/cron/internal/mtx"
 	"github.com/alaingilbert/cron/internal/utils"
+	"github.com/google/uuid"
 	"log"
 	"os"
 	"runtime/debug"
@@ -22,7 +23,6 @@ import (
 // be inspected while running.
 type Cron struct {
 	clock            clockwork.Clock           // Clock interface (real or mock) used for timing
-	nextID           atomic.Int32              // Auto-incrementing ID for new jobs
 	runningJobsCount atomic.Int32              // Count of currently running jobs
 	cond             sync.Cond                 // Signals when all jobs have completed
 	entries          mtx.RWMtxSlice[*Entry]    // Thread-safe, sorted list of job entries
@@ -34,7 +34,7 @@ type Cron struct {
 	logger           *log.Logger               // Logger
 }
 
-type EntryID int32
+type EntryID string
 
 // ErrEntryNotFound ...
 var ErrEntryNotFound = errors.New("entry not found")
@@ -255,25 +255,27 @@ func (f FuncJob) Run(ctx context.Context, id EntryID) error { return f(ctx, id) 
 func (c *Cron) AddJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
 	schedule, err := Parse(spec)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	return c.Schedule(schedule, cmd, opts...), nil
+	return c.Schedule(schedule, cmd, opts...)
 }
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) Schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) EntryID {
-	newID := c.nextID.Add(1)
+func (c *Cron) Schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
 	entry := &Entry{
-		ID:       EntryID(newID),
+		ID:       EntryID(uuid.New().String()),
 		Schedule: schedule,
 		job:      castIntoJob(cmd),
 		Active:   true,
 	}
 	utils.ApplyOptions(entry, opts)
+	if _, err := c.Entry(entry.ID); err == nil {
+		return "", errors.New("uuid already exists")
+	}
 	entry.Next = entry.Schedule.Next(c.now())
 	c.entries.With(func(entries *[]*Entry) { insertSorted(entries, entry) })
 	c.entriesUpdated()
-	return entry.ID
+	return entry.ID, nil
 }
 
 func (c *Cron) Enable(id EntryID) { c.setEntryActive(id, true) }
@@ -375,7 +377,7 @@ func (c *Cron) runWithRecovery(entry *Entry) {
 		}
 	}()
 	if err := entry.job.Run(c.ctx, entry.ID); err != nil {
-		msg := fmt.Sprintf("error running job #%d", entry.ID)
+		msg := fmt.Sprintf("error running job %s", entry.ID)
 		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
 		msg += " : " + err.Error()
 		c.logger.Print(msg)

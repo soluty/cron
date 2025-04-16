@@ -206,7 +206,7 @@ func TestEntry(t *testing.T) {
 	id, _ := cron.AddJob("@every 2s", func(context.Context) {})
 	cron.Start()
 	entry1, _ := cron.Entry(id)
-	_, err := cron.Entry(EntryID(123))
+	_, err := cron.Entry("do-not-exist")
 	assert.Equal(t, id, entry1.ID)
 	assert.ErrorIs(t, err, ErrEntryNotFound)
 }
@@ -249,9 +249,9 @@ func TestRunningMultipleSchedules(t *testing.T) {
 	_, _ = cron.AddJob("0 0 0 1 1 ?", baseJob{&calls})
 	_, _ = cron.AddJob("0 0 0 31 12 ?", baseJob{&calls})
 	_, _ = cron.AddJob("* * * * * ?", baseJob{&calls})
-	cron.Schedule(Every(time.Minute), baseJob{&calls})
-	cron.Schedule(Every(time.Second), baseJob{&calls})
-	cron.Schedule(Every(time.Hour), baseJob{&calls})
+	_, _ = cron.Schedule(Every(time.Minute), baseJob{&calls})
+	_, _ = cron.Schedule(Every(time.Second), baseJob{&calls})
+	_, _ = cron.Schedule(Every(time.Hour), baseJob{&calls})
 	cron.Start()
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(2), calls.Load())
@@ -437,8 +437,8 @@ func TestJob(t *testing.T) {
 	_, _ = cron.AddJob("0 0 0 1 1 ?", namedJob{&calls, "job3"})
 	_, _ = cron.AddJob("* * * * * ?", namedJob{&calls, "job0"})
 	_, _ = cron.AddJob("1 0 0 1 1 ?", namedJob{&calls, "job4"})
-	cron.Schedule(Every(5*time.Second+5*time.Nanosecond), namedJob{&calls, "job1"})
-	cron.Schedule(Every(5*time.Minute), namedJob{&calls, "job2"})
+	_, _ = cron.Schedule(Every(5*time.Second+5*time.Nanosecond), namedJob{&calls, "job1"})
+	_, _ = cron.Schedule(Every(5*time.Minute), namedJob{&calls, "job2"})
 	cron.Start()
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), calls.Load())
@@ -460,7 +460,7 @@ func TestJobWithZeroTimeDoesNotRun(t *testing.T) {
 	cron := New(WithClock(clock))
 	var calls atomic.Int32
 	_, _ = cron.AddJob("* * * * * *", baseJob{&calls})
-	cron.Schedule(new(ZeroSchedule), func() { t.Error("expected zero task will not run") })
+	_, _ = cron.Schedule(new(ZeroSchedule), func() { t.Error("expected zero task will not run") })
 	cron.Start()
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), calls.Load())
@@ -495,8 +495,8 @@ func TestScheduleAfterRemoval(t *testing.T) {
 	var calls atomic.Int32
 	clock := clockwork.NewFakeClock()
 	cron := New(WithClock(clock))
-	hourJob := cron.Schedule(Every(time.Hour), func() {})
-	cron.Schedule(Every(time.Second), func() {
+	hourJob, _ := cron.Schedule(Every(time.Hour), func() {})
+	_, _ = cron.Schedule(Every(time.Second), func() {
 		switch calls.Load() {
 		case 0:
 			calls.Add(1)

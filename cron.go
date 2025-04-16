@@ -186,6 +186,10 @@ func findByIDFn(id EntryID) func(e *Entry) bool {
 	return func(e *Entry) bool { return e.ID == id }
 }
 
+func (c *Cron) sortEntries(entries *[]*Entry) {
+	sort.Slice(*entries, func(i, j int) bool { return less((*entries)[i], (*entries)[j]) })
+}
+
 func (c *Cron) runNow(id EntryID) {
 	if err := c.entries.WithE(func(entries *[]*Entry) error {
 		entry := utils.Find(*entries, findByIDFn(id))
@@ -193,7 +197,7 @@ func (c *Cron) runNow(id EntryID) {
 			return errors.New("not found")
 		}
 		(*entry).Next = c.now()
-		c.sortEntries(entries)
+		c.sortEntries(entries) // runNow
 		return nil
 	}); err != nil {
 		return
@@ -230,6 +234,13 @@ func (c *Cron) addEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
 	return entry.ID, nil
 }
 
+func insertSorted(entries *[]*Entry, entry *Entry) {
+	i := sort.Search(len(*entries), func(i int) bool { return !less((*entries)[i], entry) })
+	*entries = append(*entries, nil)
+	copy((*entries)[i+1:], (*entries)[i:])
+	(*entries)[i] = entry
+}
+
 func (c *Cron) setEntryActive(id EntryID, active bool) {
 	if err := c.entries.WithE(func(entries *[]*Entry) error {
 		entry := utils.Find(*entries, findByIDFn(id))
@@ -240,38 +251,12 @@ func (c *Cron) setEntryActive(id EntryID, active bool) {
 			return errors.New("unchanged")
 		}
 		(*entry).Active = active
-		c.sortEntries(entries)
+		c.sortEntries(entries) // setEntryActive
 		return nil
 	}); err != nil {
 		return
 	}
 	c.entriesUpdated() // setEntryActive
-}
-
-func (c *Cron) sortEntries(entries *[]*Entry) {
-	sort.Slice(*entries, func(i, j int) bool { return less((*entries)[i], (*entries)[j]) })
-}
-
-func insertSorted(entries *[]*Entry, entry *Entry) {
-	i := sort.Search(len(*entries), func(i int) bool { return !less((*entries)[i], entry) })
-	*entries = append(*entries, nil)
-	copy((*entries)[i+1:], (*entries)[i:])
-	(*entries)[i] = entry
-}
-
-func (c *Cron) remove(id EntryID) {
-	c.removeEntry(id)
-	c.entriesUpdated() // remove
-}
-
-func (c *Cron) getEntries() (out []Entry) {
-	c.entries.RWith(func(entries []*Entry) {
-		out = make([]Entry, len(entries))
-		for i, e := range entries {
-			out[i] = *e
-		}
-	})
-	return
 }
 
 func (c *Cron) run() {
@@ -362,8 +347,13 @@ func (c *Cron) setEntriesNext() {
 		for _, entry := range *entries {
 			entry.Next = entry.Schedule.Next(now)
 		}
-		c.sortEntries(entries)
+		c.sortEntries(entries) // setEntriesNext
 	})
+}
+
+func (c *Cron) remove(id EntryID) {
+	c.removeEntry(id)
+	c.entriesUpdated() // remove
 }
 
 func (c *Cron) removeEntry(id EntryID) {
@@ -376,6 +366,16 @@ func removeEntry(entries *[]*Entry, id EntryID) {
 	if _, i := utils.FindIdx(*entries, findByIDFn(id)); i != -1 {
 		*entries = slices.Delete(*entries, i, i+1)
 	}
+}
+
+func (c *Cron) getEntries() (out []Entry) {
+	c.entries.RWith(func(entries []*Entry) {
+		out = make([]Entry, len(entries))
+		for i, e := range entries {
+			out[i] = *e
+		}
+	})
+	return
 }
 
 func (c *Cron) getEntry(id EntryID) (Entry, error) {

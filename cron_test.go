@@ -698,6 +698,13 @@ func (j jw15) Run(context.Context, *Cron, EntryID) {
 	j.calls.Add(1)
 }
 
+type jw16 struct{ calls *atomic.Int32 }
+
+func (j jw16) Run(context.Context, *Cron, EntryID) error {
+	j.calls.Add(1)
+	return nil
+}
+
 func TestWrappers(t *testing.T) {
 	var calls atomic.Int32
 	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
@@ -717,7 +724,8 @@ func TestWrappers(t *testing.T) {
 	_, _ = cron.AddJob("* * * * * *", jw13{&calls})
 	_, _ = cron.AddJob("* * * * * *", jw14{&calls})
 	_, _ = cron.AddJob("* * * * * *", jw15{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw16{&calls})
 	cron.Start()
 	advanceAndCycle(cron, time.Second)
-	assert.Equal(t, int32(15), calls.Load())
+	assert.Equal(t, int32(16), calls.Load())
 }

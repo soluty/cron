@@ -355,6 +355,8 @@ func (c *Cron) setLocation(newLoc *time.Location) {
 	c.entriesUpdated() // setLocation
 }
 
+// Reset all entries "Next" property.
+// This is only done when the cron timezone is changed at runtime.
 func (c *Cron) setEntriesNext() {
 	now := c.now()
 	c.entries.With(func(entries *[]*Entry) {

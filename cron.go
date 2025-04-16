@@ -341,9 +341,9 @@ func (c *Cron) runDueEntries() {
 				if entry.Next.After(now) || entry.Next.IsZero() || !entry.Active {
 					break
 				}
-				c.startJob(*entry)
 				entry.Prev = entry.Next
 				entry.Next = entry.Schedule.Next(now) // Compute new Next property for the Entry
+				c.startJob(*entry)
 				toSortCount++
 			}
 			utils.InsertionSortPartial(*entries, toSortCount, less)

@@ -24,7 +24,7 @@ import (
 type SomeJob struct{}
 
 // Run implements the Job interface for SomeJob
-func (s SomeJob) Run(context.Context, cron.EntryID) error {
+func (s SomeJob) Run(context.Context, *cron.Cron, cron.Entry) error {
 	fmt.Println("Some job")
 	return nil
 }

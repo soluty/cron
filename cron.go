@@ -128,6 +128,20 @@ func WithTimeout(d time.Duration, job IntoJob) Job {
 	return TimeoutWrapper(d)(job)
 }
 
+func DeadlineWrapper(deadline time.Time) JobWrapper {
+	return func(j IntoJob) Job {
+		return FuncJob(func(ctx context.Context, id EntryID) error {
+			deadlineCtx, cancel := context.WithDeadline(ctx, deadline)
+			defer cancel()
+			return castIntoJob(j).Run(deadlineCtx, id)
+		})
+	}
+}
+
+func WithDeadline(deadline time.Time, job IntoJob) Job {
+	return DeadlineWrapper(deadline)(job)
+}
+
 // Chain `Chain(j, w1, w2, w3)` -> `w3(w2(w1(j)))`
 func Chain(j IntoJob, wrappers ...JobWrapper) Job {
 	job := castIntoJob(j)

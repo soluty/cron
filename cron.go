@@ -201,16 +201,6 @@ func (c *Cron) runNow(id EntryID) {
 	c.entriesUpdated() // runNow
 }
 
-func (c *Cron) getLocation() *time.Location {
-	return c.location.Get()
-}
-
-func (c *Cron) setLocation(newLoc *time.Location) {
-	c.location.Set(newLoc)
-	c.setEntriesNext()
-	c.entriesUpdated() // setLocation
-}
-
 func (c *Cron) addJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
 	schedule, err := Parse(spec)
 	if err != nil {
@@ -353,6 +343,16 @@ func (c *Cron) runDueEntries() {
 			utils.InsertionSortPartial(*entries, toSortCount, less)
 		})
 	}
+}
+
+func (c *Cron) getLocation() *time.Location {
+	return c.location.Get()
+}
+
+func (c *Cron) setLocation(newLoc *time.Location) {
+	c.location.Set(newLoc)
+	c.setEntriesNext()
+	c.entriesUpdated() // setLocation
 }
 
 func (c *Cron) setEntriesNext() {

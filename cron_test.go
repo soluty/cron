@@ -310,9 +310,8 @@ type namedJob struct {
 	name  string
 }
 
-func (t namedJob) Run(context.Context, EntryID) error {
+func (t namedJob) Run() {
 	t.calls.Add(1)
-	return nil
 }
 
 // Test that adding an invalid job spec returns an error
@@ -445,7 +444,7 @@ func TestJob(t *testing.T) {
 	assert.Equal(t, int32(1), calls.Load())
 	// Ensure the entries are in the right order.
 	for i, entry := range cron.Entries() {
-		assert.Equal(t, fmt.Sprintf("job%d", i), entry.Job.(namedJob).name)
+		assert.Equal(t, fmt.Sprintf("job%d", i), entry.Job().(namedJob).name)
 	}
 }
 

@@ -251,10 +251,33 @@ type Entry struct {
 	// The last time this job was run. This is the zero time if the job has never been run.
 	Prev time.Time
 	// The Job to run.
-	Job   Job
+	job   Job
 	Label string
 
 	Active bool
+}
+
+func (e Entry) Job() any {
+	switch j := e.job.(type) {
+	case Job1Wrapper:
+		return j.Job1
+	case Job2Wrapper:
+		return j.Job2
+	case Job3Wrapper:
+		return j.Job3
+	case Job4Wrapper:
+		return j.Job4
+	case Job5Wrapper:
+		return j.Job5
+	case Job6Wrapper:
+		return j.Job6
+	case Job7Wrapper:
+		return j.Job7
+	case *OnceJob:
+		return j.Job
+	default:
+		return e.job
+	}
 }
 
 func less(e1, e2 *Entry) bool {
@@ -315,7 +338,7 @@ func (c *Cron) Schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) Ent
 	entry := &Entry{
 		ID:       EntryID(newID),
 		Schedule: schedule,
-		Job:      castIntoJob(cmd),
+		job:      castIntoJob(cmd),
 		Active:   true,
 	}
 	utils.ApplyOptions(entry, opts)
@@ -413,7 +436,7 @@ func (c *Cron) runWithRecovery(entry *Entry) {
 			c.logger.Printf("%s\n", string(debug.Stack()))
 		}
 	}()
-	if err := entry.Job.Run(c.ctx, entry.ID); err != nil {
+	if err := entry.job.Run(c.ctx, entry.ID); err != nil {
 		msg := fmt.Sprintf("error running job #%d", entry.ID)
 		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
 		msg += " : " + err.Error()
@@ -479,7 +502,7 @@ func (c *Cron) runDueEntries() {
 					break
 				}
 				c.startJob(entry)
-				if _, ok := entry.Job.(*OnceJob); ok {
+				if _, ok := entry.job.(*OnceJob); ok {
 					toRemove = append(toRemove, entry.ID)
 				} else {
 					entry.Prev = entry.Next

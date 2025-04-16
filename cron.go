@@ -251,12 +251,16 @@ func (c *Cron) setEntryActive(id EntryID, active bool) {
 			return errors.New("unchanged")
 		}
 		(*entry).Active = active
-		sort.Slice(*entries, func(i, j int) bool { return less((*entries)[i], (*entries)[j]) })
+		c.sortEntries(entries)
 		return nil
 	}); err != nil {
 		return
 	}
 	c.entriesUpdated()
+}
+
+func (c *Cron) sortEntries(entries *[]*Entry) {
+	sort.Slice(*entries, func(i, j int) bool { return less((*entries)[i], (*entries)[j]) })
 }
 
 func insertSorted(entries *[]*Entry, entry *Entry) {
@@ -419,7 +423,7 @@ func (c *Cron) setEntriesNext() {
 		for _, entry := range *entries {
 			entry.Next = entry.Schedule.Next(now)
 		}
-		sort.Slice(*entries, func(i, j int) bool { return less((*entries)[i], (*entries)[j]) })
+		c.sortEntries(entries)
 	})
 }
 

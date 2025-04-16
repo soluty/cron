@@ -4,10 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/alaingilbert/clockwork"
-	"github.com/alaingilbert/cron/internal/mtx"
-	"github.com/alaingilbert/cron/internal/utils"
-	"github.com/google/uuid"
 	"log"
 	"os"
 	"runtime/debug"
@@ -16,6 +12,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/alaingilbert/clockwork"
+	"github.com/alaingilbert/cron/internal/mtx"
+	"github.com/alaingilbert/cron/internal/utils"
+	"github.com/google/uuid"
 )
 
 // Cron keeps track of any number of entries, invoking the associated func as
@@ -229,6 +230,20 @@ func (e Entry) Job() any {
 		return j.Job7
 	case *Job8Wrapper:
 		return j.Job8
+	case *Job9Wrapper:
+		return j.Job9
+	case *Job10Wrapper:
+		return j.Job10
+	case *Job11Wrapper:
+		return j.Job11
+	case *Job12Wrapper:
+		return j.Job12
+	case *Job13Wrapper:
+		return j.Job13
+	case *Job14Wrapper:
+		return j.Job14
+	case *Job15Wrapper:
+		return j.Job15
 	default:
 		return e.job
 	}

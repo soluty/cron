@@ -19,6 +19,23 @@ type Job7 interface{ Run(EntryID) error }
 type Job8 interface {
 	Run(context.Context, EntryID) error
 }
+type Job9 interface{ Run(*Cron) }
+type Job10 interface{ Run(*Cron) error }
+type Job11 interface {
+	Run(context.Context, *Cron)
+}
+type Job12 interface {
+	Run(context.Context, *Cron) error
+}
+type Job13 interface {
+	Run(*Cron, EntryID)
+}
+type Job14 interface {
+	Run(*Cron, EntryID) error
+}
+type Job15 interface {
+	Run(context.Context, *Cron, EntryID)
+}
 
 type Job1Wrapper struct{ Job1 }
 
@@ -63,6 +80,52 @@ func (j *Job7Wrapper) Run(_ context.Context, _ *Cron, id EntryID) error { return
 type Job8Wrapper struct{ Job8 }
 
 func (j *Job8Wrapper) Run(ctx context.Context, _ *Cron, id EntryID) error { return j.Job8.Run(ctx, id) }
+
+type Job9Wrapper struct{ Job9 }
+
+func (j *Job9Wrapper) Run(_ context.Context, cron *Cron, _ EntryID) error {
+	j.Job9.Run(cron)
+	return nil
+}
+
+type Job10Wrapper struct{ Job10 }
+
+func (j *Job10Wrapper) Run(_ context.Context, cron *Cron, _ EntryID) error {
+	return j.Job10.Run(cron)
+}
+
+type Job11Wrapper struct{ Job11 }
+
+func (j *Job11Wrapper) Run(ctx context.Context, cron *Cron, _ EntryID) error {
+	j.Job11.Run(ctx, cron)
+	return nil
+}
+
+type Job12Wrapper struct{ Job12 }
+
+func (j *Job12Wrapper) Run(ctx context.Context, cron *Cron, _ EntryID) error {
+	return j.Job12.Run(ctx, cron)
+}
+
+type Job13Wrapper struct{ Job13 }
+
+func (j *Job13Wrapper) Run(_ context.Context, cron *Cron, id EntryID) error {
+	j.Job13.Run(cron, id)
+	return nil
+}
+
+type Job14Wrapper struct{ Job14 }
+
+func (j *Job14Wrapper) Run(_ context.Context, cron *Cron, id EntryID) error {
+	return j.Job14.Run(cron, id)
+}
+
+type Job15Wrapper struct{ Job15 }
+
+func (j *Job15Wrapper) Run(ctx context.Context, cron *Cron, id EntryID) error {
+	j.Job15.Run(ctx, cron, id)
+	return nil
+}
 
 type IntoJob any
 
@@ -116,6 +179,20 @@ func castIntoJob(v IntoJob) Job {
 		return &Job7Wrapper{j}
 	case Job8:
 		return &Job8Wrapper{j}
+	case Job9:
+		return &Job9Wrapper{j}
+	case Job10:
+		return &Job10Wrapper{j}
+	case Job11:
+		return &Job11Wrapper{j}
+	case Job12:
+		return &Job12Wrapper{j}
+	case Job13:
+		return &Job13Wrapper{j}
+	case Job14:
+		return &Job14Wrapper{j}
+	case Job15:
+		return &Job15Wrapper{j}
 	default:
 		panic(ErrUnsupportedJobType)
 	}

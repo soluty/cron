@@ -92,16 +92,24 @@ func main() {
 	// Run(context.Context) error
 	// Run(cron.EntryID)
 	// Run(cron.EntryID) error
+	// Run(cron.Entry)
+	// Run(cron.Entry) error
 	// Run(*cron.Cron)
 	// Run(*cron.Cron) error
 	// Run(context.Context, cron.EntryID)
 	// Run(context.Context, cron.EntryID) error
+	// Run(context.Context, cron.Entry)
+	// Run(context.Context, cron.Entry) error
 	// Run(context.Context, *cron.Cron)
 	// Run(context.Context, *cron.Cron) error
 	// Run(*cron.Cron, cron.EntryID)
 	// Run(*cron.Cron, cron.EntryID) error
+	// Run(*cron.Cron, cron.Entry)
+	// Run(*cron.Cron, cron.Entry) error
 	// Run(context.Context, *cron.Cron, cron.EntryID)
 	// Run(context.Context, *cron.Cron, cron.EntryID) error
+	// Run(context.Context, *cron.Cron, cron.Entry)
+	// Run(context.Context, *cron.Cron, cron.Entry) error
 	_, _ = c.AddJob("* * * * * *", SomeJob{})
 
 	// When using cron.Once, the job will remove itself from the cron entries

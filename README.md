@@ -104,7 +104,7 @@ func main() {
 
 	// When using cron.N, the job will remove itself from the cron entries
 	// after being executed "n" times
-	_, _ = c.AddJob("* * * * * *", cron.N(c, 2, func() {
+	_, _ = c.AddJob("* * * * * *", cron.N(2, func() {
 		fmt.Println("Will be executed 2 times")
 	}))
 
@@ -146,12 +146,13 @@ func main() {
 
 	// This is an example of how you can get the time
 	// the job was scheduled to run at
-	_, _ = c.AddJob("*/5 * * * * *", cron.ScheduledTime(c, func(scheduleTime time.Time) {
+	_, _ = c.AddJob("*/5 * * * * *", cron.ScheduledTime(func(scheduleTime time.Time) {
 		fmt.Println(scheduleTime.UnixNano(), time.Now().UnixNano())
 	}))
 
 	c.Run()
 }
+
 ```
 
 ```go

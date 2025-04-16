@@ -52,9 +52,9 @@ type JobWrapper func(IntoJob) Job
 
 func OnceWrapper(c *Cron) JobWrapper {
 	return func(job IntoJob) Job {
-		return FuncJob(func(ctx context.Context, id EntryID) error {
+		return FuncJob(func(ctx context.Context, c *Cron, id EntryID) error {
 			c.Remove(id)
-			return castIntoJob(job).Run(ctx, id)
+			return castIntoJob(job).Run(ctx, c, id)
 		})
 	}
 }
@@ -63,20 +63,20 @@ func Once(c *Cron, j IntoJob) Job {
 	return OnceWrapper(c)(j)
 }
 
-func NWrapper(c *Cron, n int) JobWrapper {
+func NWrapper(n int) JobWrapper {
 	return func(job IntoJob) Job {
 		var count atomic.Int32
-		return FuncJob(func(ctx context.Context, id EntryID) error {
+		return FuncJob(func(ctx context.Context, c *Cron, id EntryID) error {
 			if newCount := count.Add(1); int(newCount) == n {
 				c.Remove(id)
 			}
-			return castIntoJob(job).Run(ctx, id)
+			return castIntoJob(job).Run(ctx, c, id)
 		})
 	}
 }
 
-func ScheduledTime(c *Cron, job func(t time.Time)) Job {
-	return FuncJob(func(ctx context.Context, id EntryID) error {
+func ScheduledTime(job func(t time.Time)) Job {
+	return FuncJob(func(ctx context.Context, c *Cron, id EntryID) error {
 		entry, err := c.Entry(id)
 		if err != nil {
 			return err
@@ -87,17 +87,17 @@ func ScheduledTime(c *Cron, job func(t time.Time)) Job {
 }
 
 // N runs a job "n" times
-func N(c *Cron, n int, j IntoJob) Job {
-	return NWrapper(c, n)(j)
+func N(n int, j IntoJob) Job {
+	return NWrapper(n)(j)
 }
 
 // SkipIfStillRunning skips an invocation of the Job if a previous invocation is still running.
 func SkipIfStillRunning(j IntoJob) Job {
 	var running atomic.Bool
-	return FuncJob(func(ctx context.Context, id EntryID) (err error) {
+	return FuncJob(func(ctx context.Context, c *Cron, id EntryID) (err error) {
 		if running.CompareAndSwap(false, true) {
 			defer running.Store(false)
-			err = castIntoJob(j).Run(ctx, id)
+			err = castIntoJob(j).Run(ctx, c, id)
 		} else {
 			return ErrJobAlreadyRunning
 		}
@@ -108,14 +108,14 @@ func SkipIfStillRunning(j IntoJob) Job {
 // JitterWrapper add some random delay before running the job
 func JitterWrapper(duration time.Duration) JobWrapper {
 	return func(j IntoJob) Job {
-		return FuncJob(func(ctx context.Context, id EntryID) error {
+		return FuncJob(func(ctx context.Context, c *Cron, id EntryID) error {
 			delay := utils.RandDuration(0, max(duration, 0))
 			select {
 			case <-time.After(delay):
 			case <-ctx.Done():
 				return ctx.Err()
 			}
-			return castIntoJob(j).Run(ctx, id)
+			return castIntoJob(j).Run(ctx, c, id)
 		})
 	}
 }
@@ -128,10 +128,10 @@ func WithJitter(duration time.Duration, job IntoJob) Job {
 // TimeoutWrapper automatically cancel the job context after a given duration
 func TimeoutWrapper(duration time.Duration) JobWrapper {
 	return func(j IntoJob) Job {
-		return FuncJob(func(ctx context.Context, id EntryID) error {
+		return FuncJob(func(ctx context.Context, c *Cron, id EntryID) error {
 			timeoutCtx, cancel := context.WithTimeout(ctx, duration)
 			defer cancel()
-			return castIntoJob(j).Run(timeoutCtx, id)
+			return castIntoJob(j).Run(timeoutCtx, c, id)
 		})
 	}
 }
@@ -144,10 +144,10 @@ func WithTimeout(d time.Duration, job IntoJob) Job {
 
 func DeadlineWrapper(deadline time.Time) JobWrapper {
 	return func(j IntoJob) Job {
-		return FuncJob(func(ctx context.Context, id EntryID) error {
+		return FuncJob(func(ctx context.Context, c *Cron, id EntryID) error {
 			deadlineCtx, cancel := context.WithDeadline(ctx, deadline)
 			defer cancel()
-			return castIntoJob(j).Run(deadlineCtx, id)
+			return castIntoJob(j).Run(deadlineCtx, c, id)
 		})
 	}
 }
@@ -233,6 +233,8 @@ func (e Entry) Job() any {
 		return j.Job6
 	case *Job7Wrapper:
 		return j.Job7
+	case *Job8Wrapper:
+		return j.Job8
 	default:
 		return e.job
 	}
@@ -277,9 +279,9 @@ func (c *Cron) isRunning() bool {
 }
 
 // FuncJob is a wrapper that turns a func() into a cron.Job
-type FuncJob func(context.Context, EntryID) error
+type FuncJob func(context.Context, *Cron, EntryID) error
 
-func (f FuncJob) Run(ctx context.Context, id EntryID) error { return f(ctx, id) }
+func (f FuncJob) Run(ctx context.Context, c *Cron, id EntryID) error { return f(ctx, c, id) }
 
 // AddJob adds a Job to the Cron to be run on the given schedule.
 func (c *Cron) AddJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
@@ -418,7 +420,7 @@ func (c *Cron) runWithRecovery(entry *Entry) {
 			c.logger.Printf("%s\n", string(debug.Stack()))
 		}
 	}()
-	if err := entry.job.Run(c.ctx, entry.ID); err != nil {
+	if err := entry.job.Run(c.ctx, c, entry.ID); err != nil {
 		msg := fmt.Sprintf("error running job %s", entry.ID)
 		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
 		msg += " : " + err.Error()

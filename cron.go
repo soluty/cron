@@ -242,11 +242,8 @@ func insertSorted(entries *[]*Entry, entry *Entry) {
 func (c *Cron) setEntryActive(id EntryID, active bool) {
 	if err := c.entries.WithE(func(entries *[]*Entry) error {
 		entry := utils.Find(*entries, findByIDFn(id))
-		if entry == nil {
-			return errors.New("not found")
-		}
-		if (*entry).Active == active {
-			return errors.New("unchanged")
+		if entry == nil || (*entry).Active == active {
+			return errors.New("not found or unchanged")
 		}
 		(*entry).Active = active
 		c.sortEntries(entries) // setEntryActive

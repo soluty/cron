@@ -643,9 +643,59 @@ func (j jw6) Run(context.Context) error {
 
 type jw7 struct{ calls *atomic.Int32 }
 
-func (j jw7) Run(context.Context, EntryID) error {
+func (j jw7) Run(EntryID) error {
 	j.calls.Add(1)
 	return nil
+}
+
+type jw8 struct{ calls *atomic.Int32 }
+
+func (j jw8) Run(context.Context, EntryID) error {
+	j.calls.Add(1)
+	return nil
+}
+
+type jw9 struct{ calls *atomic.Int32 }
+
+func (j jw9) Run(*Cron) { j.calls.Add(1) }
+
+type jw10 struct{ calls *atomic.Int32 }
+
+func (j jw10) Run(*Cron) error {
+	j.calls.Add(1)
+	return nil
+}
+
+type jw11 struct{ calls *atomic.Int32 }
+
+func (j jw11) Run(context.Context, *Cron) {
+	j.calls.Add(1)
+}
+
+type jw12 struct{ calls *atomic.Int32 }
+
+func (j jw12) Run(context.Context, *Cron) error {
+	j.calls.Add(1)
+	return nil
+}
+
+type jw13 struct{ calls *atomic.Int32 }
+
+func (j jw13) Run(*Cron, EntryID) {
+	j.calls.Add(1)
+}
+
+type jw14 struct{ calls *atomic.Int32 }
+
+func (j jw14) Run(*Cron, EntryID) error {
+	j.calls.Add(1)
+	return nil
+}
+
+type jw15 struct{ calls *atomic.Int32 }
+
+func (j jw15) Run(context.Context, *Cron, EntryID) {
+	j.calls.Add(1)
 }
 
 func TestWrappers(t *testing.T) {
@@ -659,7 +709,15 @@ func TestWrappers(t *testing.T) {
 	_, _ = cron.AddJob("* * * * * *", jw5{&calls})
 	_, _ = cron.AddJob("* * * * * *", jw6{&calls})
 	_, _ = cron.AddJob("* * * * * *", jw7{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw8{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw9{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw10{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw11{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw12{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw13{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw14{&calls})
+	_, _ = cron.AddJob("* * * * * *", jw15{&calls})
 	cron.Start()
 	advanceAndCycle(cron, time.Second)
-	assert.Equal(t, int32(7), calls.Load())
+	assert.Equal(t, int32(15), calls.Load())
 }

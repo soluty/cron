@@ -257,6 +257,7 @@ type Entry struct {
 	Active bool
 }
 
+// Job returns the original job as it was before it was wrapped by the cron library
 func (e Entry) Job() any {
 	switch j := e.job.(type) {
 	case Job1Wrapper:

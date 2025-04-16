@@ -216,10 +216,10 @@ func (c *Cron) addJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, e
 func (c *Cron) schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
 	entry := Entry{
 		ID:       EntryID(uuid.New().String()),
-		Schedule: schedule,
 		job:      castIntoJob(cmd),
-		Active:   true,
+		Schedule: schedule,
 		Next:     schedule.Next(c.now()),
+		Active:   true,
 	}
 	return c.addEntry(entry, opts...)
 }

@@ -56,3 +56,60 @@ func (j *Job6Wrapper) Run(ctx context.Context, _ EntryID) error { return j.Job6.
 type Job7Wrapper struct{ Job7 }
 
 func (j *Job7Wrapper) Run(_ context.Context, id EntryID) error { return j.Job7.Run(id) }
+
+type OnceJob struct{ Job }
+
+func (j *OnceJob) Run(ctx context.Context, id EntryID) error { return j.Job.Run(ctx, id) }
+
+type IntoJob any
+
+func castIntoJob(v IntoJob) Job {
+	switch j := v.(type) {
+	case func(context.Context) error:
+		return FuncJob(func(ctx context.Context, _ EntryID) error { return j(ctx) })
+	case func(context.Context, EntryID) error:
+		return FuncJob(j)
+	case func(context.Context, EntryID):
+		return FuncJob(func(ctx context.Context, id EntryID) error {
+			j(ctx, id)
+			return nil
+		})
+	case func() error:
+		return FuncJob(func(context.Context, EntryID) error { return j() })
+	case func(context.Context):
+		return FuncJob(func(ctx context.Context, _ EntryID) error {
+			j(ctx)
+			return nil
+		})
+	case func(id EntryID):
+		return FuncJob(func(_ context.Context, id EntryID) error {
+			j(id)
+			return nil
+		})
+	case func(id EntryID) error:
+		return FuncJob(func(_ context.Context, id EntryID) error { return j(id) })
+	case func():
+		return FuncJob(func(context.Context, EntryID) error {
+			j()
+			return nil
+		})
+	case Job:
+		return j
+	case Job1:
+		return &Job1Wrapper{j}
+	case Job2:
+		return &Job2Wrapper{j}
+	case Job3:
+		return &Job3Wrapper{j}
+	case Job4:
+		return &Job4Wrapper{j}
+	case Job5:
+		return &Job5Wrapper{j}
+	case Job6:
+		return &Job6Wrapper{j}
+	case Job7:
+		return &Job7Wrapper{j}
+	default:
+		panic(ErrUnsupportedJobType)
+	}
+}

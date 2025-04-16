@@ -50,17 +50,11 @@ var ErrIDAlreadyUsed = errors.New("id already used")
 
 type JobWrapper func(IntoJob) Job
 
-func OnceWrapper(c *Cron) JobWrapper {
-	return func(job IntoJob) Job {
-		return FuncJob(func(ctx context.Context, c *Cron, id EntryID) error {
-			c.Remove(id)
-			return castIntoJob(job).Run(ctx, c, id)
-		})
-	}
-}
-
-func Once(c *Cron, j IntoJob) Job {
-	return OnceWrapper(c)(j)
+func Once(job IntoJob) Job {
+	return FuncJob(func(ctx context.Context, c *Cron, id EntryID) error {
+		c.Remove(id)
+		return castIntoJob(job).Run(ctx, c, id)
+	})
 }
 
 func NWrapper(n int) JobWrapper {

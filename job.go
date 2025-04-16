@@ -140,35 +140,111 @@ type IntoJob any
 
 func castIntoJob(v IntoJob) Job {
 	switch j := v.(type) {
+	case func():
+		return FuncJob(func(context.Context, *Cron, Entry) error {
+			j()
+			return nil
+		})
+	case func() error:
+		return FuncJob(func(context.Context, *Cron, Entry) error {
+			return j()
+		})
+	case func(context.Context):
+		return FuncJob(func(ctx context.Context, _ *Cron, _ Entry) error {
+			j(ctx)
+			return nil
+		})
 	case func(context.Context) error:
 		return FuncJob(func(ctx context.Context, _ *Cron, _ Entry) error { return j(ctx) })
-	case func(context.Context, EntryID) error:
-		return FuncJob(func(ctx context.Context, _ *Cron, e Entry) error {
-			return j(ctx, e.ID)
+	case func(EntryID):
+		return FuncJob(func(_ context.Context, _ *Cron, e Entry) error {
+			j(e.ID)
+			return nil
+		})
+	case func(EntryID) error:
+		return FuncJob(func(_ context.Context, _ *Cron, e Entry) error {
+			return j(e.ID)
+		})
+	case func(Entry):
+		return FuncJob(func(_ context.Context, _ *Cron, e Entry) error {
+			j(e)
+			return nil
+		})
+	case func(Entry) error:
+		return FuncJob(func(_ context.Context, _ *Cron, e Entry) error {
+			return j(e)
+		})
+	case func(*Cron):
+		return FuncJob(func(_ context.Context, c *Cron, _ Entry) error {
+			j(c)
+			return nil
+		})
+	case func(*Cron) error:
+		return FuncJob(func(_ context.Context, c *Cron, _ Entry) error {
+			return j(c)
 		})
 	case func(context.Context, EntryID):
 		return FuncJob(func(ctx context.Context, _ *Cron, e Entry) error {
 			j(ctx, e.ID)
 			return nil
 		})
-	case func() error:
-		return FuncJob(func(context.Context, *Cron, Entry) error { return j() })
-	case func(context.Context):
-		return FuncJob(func(ctx context.Context, _ *Cron, _ Entry) error {
-			j(ctx)
+	case func(context.Context, EntryID) error:
+		return FuncJob(func(ctx context.Context, _ *Cron, e Entry) error {
+			return j(ctx, e.ID)
+		})
+	case func(context.Context, Entry):
+		return FuncJob(func(ctx context.Context, _ *Cron, e Entry) error {
+			j(ctx, e)
 			return nil
 		})
-	case func(id EntryID):
-		return FuncJob(func(_ context.Context, _ *Cron, e Entry) error {
-			j(e.ID)
+	case func(context.Context, Entry) error:
+		return FuncJob(func(ctx context.Context, _ *Cron, e Entry) error {
+			return j(ctx, e)
+		})
+	case func(context.Context, *Cron):
+		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
+			j(ctx, c)
 			return nil
 		})
-	case func(id EntryID) error:
-		return FuncJob(func(_ context.Context, _ *Cron, e Entry) error { return j(e.ID) })
-	case func():
-		return FuncJob(func(context.Context, *Cron, Entry) error {
-			j()
+	case func(context.Context, *Cron) error:
+		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
+			return j(ctx, c)
+		})
+	case func(*Cron, EntryID):
+		return FuncJob(func(_ context.Context, c *Cron, e Entry) error {
+			j(c, e.ID)
 			return nil
+		})
+	case func(*Cron, EntryID) error:
+		return FuncJob(func(_ context.Context, c *Cron, e Entry) error {
+			return j(c, e.ID)
+		})
+	case func(*Cron, Entry):
+		return FuncJob(func(_ context.Context, c *Cron, e Entry) error {
+			j(c, e)
+			return nil
+		})
+	case func(*Cron, Entry) error:
+		return FuncJob(func(_ context.Context, c *Cron, e Entry) error {
+			return j(c, e)
+		})
+	case func(context.Context, *Cron, Entry):
+		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
+			j(ctx, c, e)
+			return nil
+		})
+	case func(context.Context, *Cron, Entry) error:
+		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
+			return j(ctx, c, e)
+		})
+	case func(context.Context, *Cron, EntryID):
+		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
+			j(ctx, c, e.ID)
+			return nil
+		})
+	case func(context.Context, *Cron, EntryID) error:
+		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
+			return j(ctx, c, e.ID)
 		})
 	case Job:
 		return j

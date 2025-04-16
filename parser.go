@@ -195,8 +195,6 @@ func normalizeFields(fields []string, options ParseOption) ([]string, error) {
 			fields = append(fields, defaults[5]) // TODO: improve access to default
 		case options&SecondOptional > 0:
 			fields = append([]string{defaults[0]}, fields...)
-		default:
-			return nil, fmt.Errorf("unknown optional field")
 		}
 	}
 

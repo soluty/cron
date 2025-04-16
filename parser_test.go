@@ -1,6 +1,7 @@
 package cron
 
 import (
+	"github.com/stretchr/testify/assert"
 	"reflect"
 	"strings"
 	"testing"
@@ -181,6 +182,11 @@ func TestParseSchedule(t *testing.T) {
 	}
 }
 
+func TestBadLocation(t *testing.T) {
+	_, err := secondParser.Parse("TZ=UFC  @midnight")
+	assert.ErrorContains(t, err, "provided bad location")
+}
+
 func TestOptionalSecondSchedule(t *testing.T) {
 	parser := NewParser(SecondOptional | Minute | Hour | Dom | Month | Dow | Descriptor)
 	entries := []struct {
@@ -201,6 +207,12 @@ func TestOptionalSecondSchedule(t *testing.T) {
 			t.Errorf("%s => expected %b, got %b", c.expr, c.expected, actual)
 		}
 	}
+}
+
+func TestTwoOptionalsPanic(t *testing.T) {
+	assert.Panics(t, func() {
+		NewParser(SecondOptional | Minute | Hour | Dom | Month | Dow | Descriptor | DowOptional)
+	})
 }
 
 func TestNormalizeFields(t *testing.T) {

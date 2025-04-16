@@ -103,6 +103,12 @@ func main() {
 		fmt.Println("Will only be executed once")
 	}))
 
+	// When using cron.N, the job will remove itself from the cron entries
+	// after being executed "n" times
+	_, _ = c.AddJob("* * * * * *", cron.N(c, 2, func() {
+		fmt.Println("Will be executed 2 times")
+	}))
+
 	// cron.SkipIfStillRunning will ensure that the job is skipped if a previous
 	// invocation is still running
 	_, _ = c.AddJob("* * * * * *", cron.SkipIfStillRunning(func() {

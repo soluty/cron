@@ -60,6 +60,23 @@ func Once(c *Cron, j IntoJob) Job {
 	return OnceWrapper(c)(j)
 }
 
+func NWrapper(c *Cron, n int) JobWrapper {
+	return func(job IntoJob) Job {
+		var count atomic.Int32
+		return FuncJob(func(ctx context.Context, id EntryID) error {
+			if newCount := count.Add(1); int(newCount) == n {
+				c.Remove(id)
+			}
+			return castIntoJob(job).Run(ctx, id)
+		})
+	}
+}
+
+// N runs a job "n" times
+func N(c *Cron, n int, j IntoJob) Job {
+	return NWrapper(c, n)(j)
+}
+
 // SkipIfStillRunning skips an invocation of the Job if a previous invocation is still running.
 func SkipIfStillRunning(j IntoJob) Job {
 	var running atomic.Bool

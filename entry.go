@@ -25,15 +25,6 @@ type Entry struct {
 	job Job
 }
 
-func less(e1, e2 *Entry) bool {
-	if e1.Next.IsZero() || !e1.Active {
-		return false
-	} else if e2.Next.IsZero() || !e2.Active {
-		return true
-	}
-	return e1.Next.Before(e2.Next)
-}
-
 // Job returns the original job as it was before it was wrapped by the cron library
 func (e Entry) Job() any {
 	val := reflect.ValueOf(e.job)

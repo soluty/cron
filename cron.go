@@ -1,14 +1,13 @@
 package cron
 
 import (
+	"container/heap"
 	"context"
 	"errors"
 	"fmt"
 	"log"
 	"os"
 	"runtime/debug"
-	"slices"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,7 +25,7 @@ type Cron struct {
 	clock            clockwork.Clock           // Clock interface (real or mock) used for timing
 	runningJobsCount atomic.Int32              // Count of currently running jobs
 	cond             sync.Cond                 // Signals when all jobs have completed
-	entries          mtx.RWMtxSlice[*Entry]    // Thread-safe, sorted list of job entries
+	entries          mtx.RWMtx[EntryHeap]      // Thread-safe, sorted list of job entries
 	ctx              context.Context           // Context to control the scheduler lifecycle
 	cancel           context.CancelFunc        // Cancels the scheduler context
 	update           chan context.CancelFunc   // Triggers update in the scheduler loop
@@ -182,18 +181,23 @@ func findByIDFn(id EntryID) func(e *Entry) bool {
 	return func(e *Entry) bool { return e.ID == id }
 }
 
-func (c *Cron) sortEntries(entries *[]*Entry) {
-	sort.Slice(*entries, func(i, j int) bool { return less((*entries)[i], (*entries)[j]) })
+func (c *Cron) sortEntries(entries *EntryHeap) {
+	sortedEntries := new(EntryHeap)
+	for len(*entries) > 0 {
+		heap.Push(sortedEntries, heap.Pop(entries).(*Entry))
+	}
+	*entries = *sortedEntries
 }
 
 func (c *Cron) runNow(id EntryID) {
-	if err := c.entries.WithE(func(entries *[]*Entry) error {
-		entry := utils.Find(*entries, findByIDFn(id))
+	if err := c.entries.WithE(func(entries *EntryHeap) error {
+		entry, idx := utils.FindIdx(*entries, findByIDFn(id))
 		if entry == nil {
 			return errors.New("not found")
 		}
 		(*entry).Next = c.now()
-		c.sortEntries(entries) // runNow
+		heap.Remove(entries, idx)
+		heap.Push(entries, *entry)
 		return nil
 	}); err != nil {
 		return
@@ -227,26 +231,20 @@ func (c *Cron) addEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
 	if c.entryExists(entry.ID) {
 		return "", ErrIDAlreadyUsed
 	}
-	c.entries.With(func(entries *[]*Entry) { insertSorted(entries, &entry) })
+	c.entries.With(func(entries *EntryHeap) { heap.Push(entries, &entry) })
 	c.entriesUpdated() // addEntry
 	return entry.ID, nil
 }
 
-func insertSorted(entries *[]*Entry, entry *Entry) {
-	i := sort.Search(len(*entries), func(i int) bool { return !less((*entries)[i], entry) })
-	*entries = append(*entries, nil)
-	copy((*entries)[i+1:], (*entries)[i:])
-	(*entries)[i] = entry
-}
-
 func (c *Cron) setEntryActive(id EntryID, active bool) {
-	if err := c.entries.WithE(func(entries *[]*Entry) error {
-		entry := utils.Find(*entries, findByIDFn(id))
+	if err := c.entries.WithE(func(entries *EntryHeap) error {
+		entry, idx := utils.FindIdx(*entries, findByIDFn(id))
 		if entry == nil || (*entry).Active == active {
 			return errors.New("not found or unchanged")
 		}
 		(*entry).Active = active
-		c.sortEntries(entries) // setEntryActive
+		heap.Remove(entries, idx)
+		heap.Push(entries, *entry)
 		return nil
 	}); err != nil {
 		return
@@ -269,9 +267,9 @@ func (c *Cron) run() {
 }
 
 func (c *Cron) getNextTime() (out time.Time) {
-	c.entries.RWith(func(entries []*Entry) {
-		if len(entries) > 0 && !entries[0].Next.IsZero() {
-			out = entries[0].Next
+	c.entries.RWith(func(entries EntryHeap) {
+		if e := entries.Peek(); e != nil {
+			out = e.Next
 		}
 	})
 	return
@@ -302,18 +300,20 @@ func (c *Cron) entriesUpdated() {
 func (c *Cron) runDueEntries() {
 	if c.isRunning() {
 		now := c.now()
-		c.entries.With(func(entries *[]*Entry) {
+		c.entries.With(func(entries *EntryHeap) {
 			var toSortCount int
-			for _, entry := range *entries {
-				if entry.Next.After(now) || entry.Next.IsZero() || !entry.Active {
+			for {
+				entry := entries.Peek()
+				if entry == nil || entry.Next.After(now) || entry.Next.IsZero() || !entry.Active {
 					break
 				}
+				entry = heap.Pop(entries).(*Entry)
 				toSortCount++
 				entry.Prev = entry.Next
 				entry.Next = entry.Schedule.Next(now) // Compute new Next property for the Entry
+				heap.Push(entries, entry)
 				c.startJob(*entry)
 			}
-			utils.InsertionSortPartial(*entries, toSortCount, less)
 		})
 	}
 }
@@ -332,7 +332,7 @@ func (c *Cron) setLocation(newLoc *time.Location) {
 // This is only done when the cron timezone is changed at runtime.
 func (c *Cron) setEntriesNext() {
 	now := c.now()
-	c.entries.With(func(entries *[]*Entry) {
+	c.entries.With(func(entries *EntryHeap) {
 		for _, entry := range *entries {
 			entry.Next = entry.Schedule.Next(now)
 		}
@@ -346,34 +346,42 @@ func (c *Cron) remove(id EntryID) {
 }
 
 func (c *Cron) removeEntry(id EntryID) {
-	c.entries.With(func(entries *[]*Entry) {
+	c.entries.With(func(entries *EntryHeap) {
 		removeEntry(entries, id)
 	})
 }
 
-func removeEntry(entries *[]*Entry, id EntryID) {
+func removeEntry(entries *EntryHeap, id EntryID) {
 	if _, i := utils.FindIdx(*entries, findByIDFn(id)); i != -1 {
-		*entries = slices.Delete(*entries, i, i+1)
+		heap.Remove(entries, i)
 	}
 }
 
 func (c *Cron) getEntries() (out []Entry) {
-	c.entries.RWith(func(entries []*Entry) {
-		out = make([]Entry, len(entries))
-		for i, e := range entries {
-			out[i] = *e
+	c.entries.With(func(entries *EntryHeap) {
+		clone := new(EntryHeap)
+		l := len(*entries)
+		out = make([]Entry, l)
+		for i := 0; i < l; i++ {
+			entry := heap.Pop(entries).(*Entry)
+			out[i] = *entry
+			heap.Push(clone, entry)
 		}
+		*entries = *clone
 	})
 	return
 }
 
-func (c *Cron) getEntry(id EntryID) (Entry, error) {
-	entries := c.getEntries()
-	entry := utils.Find(entries, func(e Entry) bool { return e.ID == id })
-	if entry == nil {
+func (c *Cron) getEntry(id EntryID) (out Entry, err error) {
+	c.entries.RWith(func(entries EntryHeap) {
+		if entry := utils.Find(entries, findByIDFn(id)); entry != nil {
+			out = **entry
+		}
+	})
+	if out.ID == "" {
 		return Entry{}, ErrEntryNotFound
 	}
-	return *entry, nil
+	return out, nil
 }
 
 func (c *Cron) entryExists(id EntryID) bool {

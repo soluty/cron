@@ -176,9 +176,13 @@ func (c *Cron) isRunning() bool {
 	return c.running.Load()
 }
 
+func findByIDFn(id EntryID) func(e *Entry) bool {
+	return func(e *Entry) bool { return e.ID == id }
+}
+
 func (c *Cron) runNow(id EntryID) {
 	if err := c.entries.WithE(func(entries *[]*Entry) error {
-		entry := utils.Find(*entries, func(e *Entry) bool { return e.ID == id })
+		entry := utils.Find(*entries, findByIDFn(id))
 		if entry == nil {
 			return errors.New("not found")
 		}
@@ -232,7 +236,7 @@ func (c *Cron) addEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
 
 func (c *Cron) setEntryActive(id EntryID, active bool) {
 	if err := c.entries.WithE(func(entries *[]*Entry) error {
-		entry := utils.Find(*entries, func(e *Entry) bool { return e.ID == id })
+		entry := utils.Find(*entries, findByIDFn(id))
 		if entry == nil {
 			return errors.New("not found")
 		}

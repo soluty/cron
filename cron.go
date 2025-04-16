@@ -379,10 +379,11 @@ func removeEntry(entries *[]*Entry, id EntryID) {
 
 func (c *Cron) getEntry(id EntryID) (Entry, error) {
 	entries := c.getEntries()
-	if entry := utils.Find(entries, func(e Entry) bool { return e.ID == id }); entry != nil {
-		return *entry, nil
+	entry := utils.Find(entries, func(e Entry) bool { return e.ID == id })
+	if entry == nil {
+		return Entry{}, ErrEntryNotFound
 	}
-	return Entry{}, ErrEntryNotFound
+	return *entry, nil
 }
 
 func (c *Cron) entryExists(id EntryID) bool {

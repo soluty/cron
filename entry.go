@@ -1,6 +1,9 @@
 package cron
 
-import "time"
+import (
+	"reflect"
+	"time"
+)
 
 // EntryID ...
 type EntryID string
@@ -33,56 +36,17 @@ func less(e1, e2 *Entry) bool {
 
 // Job returns the original job as it was before it was wrapped by the cron library
 func (e Entry) Job() any {
-	switch j := e.job.(type) {
-	case *Job1Wrapper:
-		return j.Job1
-	case *Job2Wrapper:
-		return j.Job2
-	case *Job3Wrapper:
-		return j.Job3
-	case *Job4Wrapper:
-		return j.Job4
-	case *Job5Wrapper:
-		return j.Job5
-	case *Job6Wrapper:
-		return j.Job6
-	case *Job7Wrapper:
-		return j.Job7
-	case *Job8Wrapper:
-		return j.Job8
-	case *Job9Wrapper:
-		return j.Job9
-	case *Job10Wrapper:
-		return j.Job10
-	case *Job11Wrapper:
-		return j.Job11
-	case *Job12Wrapper:
-		return j.Job12
-	case *Job13Wrapper:
-		return j.Job13
-	case *Job14Wrapper:
-		return j.Job14
-	case *Job15Wrapper:
-		return j.Job15
-	case *Job16Wrapper:
-		return j.Job16
-	case *Job17Wrapper:
-		return j.Job17
-	case *Job18Wrapper:
-		return j.Job18
-	case *Job19Wrapper:
-		return j.Job19
-	case *Job20Wrapper:
-		return j.Job20
-	case *Job21Wrapper:
-		return j.Job21
-	case *Job22Wrapper:
-		return j.Job22
-	case *Job23Wrapper:
-		return j.Job23
-	default:
-		return e.job
+	val := reflect.ValueOf(e.job)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
 	}
+	if val.Kind() == reflect.Struct && val.NumField() == 1 {
+		field := val.Field(0)
+		if field.CanInterface() {
+			return field.Interface()
+		}
+	}
+	return e.job
 }
 
 type EntryOption func(*Cron, *Entry)

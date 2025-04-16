@@ -25,7 +25,7 @@ import (
 type SomeJob struct{}
 
 // Run implements the Job interface for SomeJob
-func (s SomeJob) Run(context.Context) error {
+func (s SomeJob) Run(context.Context, cron.EntryID) error {
 	fmt.Println("Some job")
 	return nil
 }
@@ -86,6 +86,15 @@ func main() {
 	}))
 
 	// Anything that implements the Job interface can be used for job
+	// Or any of:
+	// Run()
+	// Run() error
+	// Run(context.Context)
+	// Run(context.Context) error
+	// Run(cron.EntryID)
+	// Run(cron.EntryID) error
+	// Run(context.Context, cron.EntryID)
+	// Run(context.Context, cron.EntryID) error
 	_, _ = c.AddJob("* * * * * *", SomeJob{})
 
 	// When using cron.Once, the job will remove itself from the cron entries

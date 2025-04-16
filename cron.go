@@ -278,19 +278,6 @@ func (c *Cron) getEntries() (out []Entry) {
 	return
 }
 
-func (c *Cron) getEntry(id EntryID) (out Entry, err error) {
-	for _, entry := range c.getEntries() {
-		if entry.ID == id {
-			return entry, nil
-		}
-	}
-	return out, ErrEntryNotFound
-}
-
-func (c *Cron) entryExists(id EntryID) bool {
-	return utils.Second(c.getEntry(id)) == nil
-}
-
 func (c *Cron) run() {
 	for {
 		// Determine the next entry to run.
@@ -372,12 +359,21 @@ func (c *Cron) removeEntry(id EntryID) {
 }
 
 func removeEntry(entries *[]*Entry, id EntryID) {
-	for i, entry := range *entries {
-		if entry.ID == id {
-			*entries = slices.Delete(*entries, i, i+1)
-			break
-		}
+	if _, i := utils.FindIdx(*entries, findByIDFn(id)); i != -1 {
+		*entries = slices.Delete(*entries, i, i+1)
 	}
+}
+
+func (c *Cron) getEntry(id EntryID) (Entry, error) {
+	entries := c.getEntries()
+	if entry := utils.Find(entries, func(e Entry) bool { return e.ID == id }); entry != nil {
+		return *entry, nil
+	}
+	return Entry{}, ErrEntryNotFound
+}
+
+func (c *Cron) entryExists(id EntryID) bool {
+	return utils.Second(c.getEntry(id)) == nil
 }
 
 // startJob runs the given job in a new goroutine.

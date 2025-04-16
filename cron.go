@@ -402,7 +402,7 @@ func (c *Cron) runWithRecovery(entry Entry) {
 		msg := fmt.Sprintf("error running job %s", entry.ID)
 		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
 		msg += " : " + err.Error()
-		c.logger.Print(msg)
+		c.logger.Println(msg)
 	}
 }
 

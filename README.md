@@ -135,6 +135,11 @@ func main() {
 	c.Enable(disabledID)
 	c.Disable(disabledID)
 
+	// You can specify the ID to use for a job
+	_, _ = c.AddJob("* * * * * *", func(id cron.EntryID) {
+		fmt.Printf("this job has a custom ID: %s\n", id)
+	}, cron.WithID("my-job-id"))
+
 	c.Run()
 }
 ```

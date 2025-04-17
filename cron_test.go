@@ -177,11 +177,12 @@ func TestStopWait(t *testing.T) {
 	cron.Start()
 	advanceAndCycleNoWait(cron, time.Second)
 	go func() {
+		<-c1
 		<-cron.Stop() // wait until all ongoing jobs terminate
 		close(c2)
 	}()
 	<-c1
-	advanceAndCycleNoWait(cron, 61*time.Second)
+	advanceAndCycle(cron, 61*time.Second)
 	recvWithTimeout(t, c2, "expected cron will be stopped immediately")
 }
 

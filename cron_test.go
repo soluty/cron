@@ -171,8 +171,7 @@ func TestStopWait(t *testing.T) {
 	c1 := make(chan struct{})
 	c2 := make(chan struct{})
 	_, _ = cron.AddJob("1 0 1 * * *", func(context.Context) {
-		close(c1)
-		clock.Sleep(time.Minute)
+		clock.SleepNotify(time.Minute, c1)
 	})
 	cron.Start()
 	advanceAndCycleNoWait(cron, time.Second)

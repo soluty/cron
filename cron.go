@@ -298,14 +298,12 @@ func (c *Cron) runDueEntries() {
 	if c.isRunning() {
 		now := c.now()
 		c.entries.With(func(entries *EntryHeap) {
-			var toSortCount int
 			for {
 				entry := entries.Peek()
 				if entry == nil || entry.Next.After(now) || entry.Next.IsZero() || !entry.Active {
 					break
 				}
 				entry = heap.Pop(entries).(*Entry)
-				toSortCount++
 				entry.Prev = entry.Next
 				entry.Next = entry.Schedule.Next(now) // Compute new Next property for the Entry
 				heap.Push(entries, entry)

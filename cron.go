@@ -67,7 +67,7 @@ type ScheduleParser interface {
 func New(opts ...Option) *Cron {
 	cfg := utils.BuildConfig(opts)
 	clock := utils.Or(cfg.Clock, clockwork.NewRealClock())
-	location := utils.Or(cfg.Location, clock.Location())
+	location := utils.Or(cfg.Location, clock.Now().Location())
 	parentCtx := utils.Or(cfg.Ctx, context.Background())
 	logger := utils.Or(cfg.Logger, log.New(os.Stderr, "cron", log.LstdFlags))
 	parser := utils.Or(cfg.Parser, ScheduleParser(standardParser))

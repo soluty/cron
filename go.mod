@@ -3,7 +3,7 @@ module github.com/alaingilbert/cron
 go 1.24
 
 require (
-	github.com/alaingilbert/clockwork v0.2.0
+	github.com/alaingilbert/clockwork v0.0.0-20250417041935-0e78f72e2646
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.10.0
 )

@@ -14,6 +14,7 @@ import (
 
 	"github.com/alaingilbert/clockwork"
 	"github.com/alaingilbert/cron/internal/mtx"
+	isync "github.com/alaingilbert/cron/internal/sync"
 	"github.com/alaingilbert/cron/internal/utils"
 	"github.com/google/uuid"
 )
@@ -22,17 +23,18 @@ import (
 // specified by the schedule. It may be started, stopped, and the entries may
 // be inspected while running.
 type Cron struct {
-	clock            clockwork.Clock           // Clock interface (real or mock) used for timing
-	runningJobsCount atomic.Int32              // Count of currently running jobs
-	cond             sync.Cond                 // Signals when all jobs have completed
-	entries          mtx.RWMtx[EntryHeap]      // Thread-safe, sorted list of job entries
-	ctx              context.Context           // Context to control the scheduler lifecycle
-	cancel           context.CancelFunc        // Cancels the scheduler context
-	update           chan context.CancelFunc   // Triggers update in the scheduler loop
-	running          atomic.Bool               // Indicates if the scheduler is currently running
-	location         mtx.RWMtx[*time.Location] // Thread-safe time zone location
-	logger           *log.Logger               // Logger for scheduler events, errors, and diagnostics
-	parser           ScheduleParser            // Parses cron expressions into schedule objects
+	clock            clockwork.Clock                   // Clock interface (real or mock) used for timing
+	runningJobsCount atomic.Int32                      // Count of currently running jobs
+	runningJobsMap   isync.Map[EntryID, *atomic.Int32] // Keep track of currently running jobs
+	cond             sync.Cond                         // Signals when all jobs have completed
+	entries          mtx.RWMtx[EntryHeap]              // Thread-safe, sorted list of job entries
+	ctx              context.Context                   // Context to control the scheduler lifecycle
+	cancel           context.CancelFunc                // Cancels the scheduler context
+	update           chan context.CancelFunc           // Triggers update in the scheduler loop
+	running          atomic.Bool                       // Indicates if the scheduler is currently running
+	location         mtx.RWMtx[*time.Location]         // Thread-safe time zone location
+	logger           *log.Logger                       // Logger for scheduler events, errors, and diagnostics
+	parser           ScheduleParser                    // Parses cron expressions into schedule objects
 }
 
 // ErrEntryNotFound ...
@@ -71,14 +73,15 @@ func New(opts ...Option) *Cron {
 	parser := utils.Or(cfg.Parser, ScheduleParser(standardParser))
 	ctx, cancel := context.WithCancel(parentCtx)
 	return &Cron{
-		cond:     sync.Cond{L: &sync.Mutex{}},
-		clock:    clock,
-		ctx:      ctx,
-		cancel:   cancel,
-		update:   make(chan context.CancelFunc),
-		location: mtx.NewRWMtx(location),
-		logger:   logger,
-		parser:   parser,
+		cond:           sync.Cond{L: &sync.Mutex{}},
+		clock:          clock,
+		ctx:            ctx,
+		cancel:         cancel,
+		runningJobsMap: isync.Map[EntryID, *atomic.Int32]{},
+		update:         make(chan context.CancelFunc),
+		location:       mtx.NewRWMtx(location),
+		logger:         logger,
+		parser:         parser,
 	}
 }
 
@@ -124,6 +127,9 @@ func (c *Cron) Remove(id EntryID) { c.remove(id) }
 
 // RunNow allows the user to run a specific job now
 func (c *Cron) RunNow(id EntryID) { c.runNow(id) }
+
+// IsRunning either or not a specific job is currently running
+func (c *Cron) IsRunning(id EntryID) bool { return c.entryIsRunning(id) }
 
 // Location gets the time zone location
 func (c *Cron) Location() *time.Location { return c.getLocation() }
@@ -384,8 +390,21 @@ func (c *Cron) getEntry(id EntryID) (out Entry, err error) {
 	return out, nil
 }
 
+func (c *Cron) entryIsRunning(id EntryID) bool {
+	val, ok := c.runningJobsMap.Load(id)
+	if !ok {
+		return false
+	}
+	return val.Load() > 0
+}
+
 func (c *Cron) entryExists(id EntryID) bool {
 	return utils.Second(c.getEntry(id)) == nil
+}
+
+func (c *Cron) updateJobsCounter(key EntryID, delta int32) {
+	val, _ := c.runningJobsMap.LoadOrStore(key, &atomic.Int32{})
+	val.Add(delta)
 }
 
 // startJob runs the given job in a new goroutine.
@@ -393,9 +412,11 @@ func (c *Cron) startJob(entry Entry) {
 	c.runningJobsCount.Add(1)
 	go func() {
 		defer func() {
+			c.updateJobsCounter(entry.ID, -1)
 			c.runningJobsCount.Add(-1)
 			c.signalJobCompleted()
 		}()
+		c.updateJobsCounter(entry.ID, 1)
 		c.runWithRecovery(entry)
 	}()
 }

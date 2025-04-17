@@ -938,3 +938,20 @@ func TestAddEntry(t *testing.T) {
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(2), calls.Load())
 }
+
+func TestIsRunning(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 59, 59, 0, time.UTC))
+	cron := New(WithClock(clock), WithParser(secondParser))
+	c1 := make(chan struct{})
+	id, _ := cron.AddJob("0 0 * * * *", func() {
+		clock.SleepNotify(time.Minute, c1)
+	})
+	cron.Start()
+	assert.False(t, cron.IsRunning(id))
+	advanceAndCycleNoWait(cron, time.Second)
+	<-c1
+	assert.True(t, cron.IsRunning(id))
+	advanceAndCycleNoWait(cron, time.Minute)
+	cron.waitAllJobsCompleted()
+	assert.False(t, cron.IsRunning(id))
+}

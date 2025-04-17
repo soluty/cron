@@ -191,13 +191,12 @@ func (c *Cron) sortEntries(entries *EntryHeap) {
 
 func (c *Cron) runNow(id EntryID) {
 	if err := c.entries.WithE(func(entries *EntryHeap) error {
-		entry, idx := utils.FindIdx(*entries, findByIDFn(id))
-		if entry == nil {
-			return errors.New("not found")
+		if entry, idx := utils.FindIdx(*entries, findByIDFn(id)); entry != nil {
+			(*entry).Next = c.now()
+			c.reInsertEntry(entries, idx)
+			return nil
 		}
-		(*entry).Next = c.now()
-		c.reInsertEntry(entries, idx)
-		return nil
+		return errors.New("not found")
 	}); err != nil {
 		return
 	}

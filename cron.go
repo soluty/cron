@@ -257,7 +257,7 @@ func (c *Cron) setEntryActive(id EntryID, active bool) {
 
 func (c *Cron) run() {
 	for {
-		updated := context.CancelFunc(func() {})
+		var updated context.CancelFunc
 		select {
 		case <-c.clock.After(c.getNextDelay()):
 		case updated = <-c.update:
@@ -265,7 +265,9 @@ func (c *Cron) run() {
 			return
 		}
 		c.runDueEntries()
-		updated()
+		if updated != nil {
+			updated()
+		}
 	}
 }
 

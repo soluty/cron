@@ -196,8 +196,7 @@ func (c *Cron) runNow(id EntryID) {
 			return errors.New("not found")
 		}
 		(*entry).Next = c.now()
-		heap.Remove(entries, idx)
-		heap.Push(entries, *entry)
+		c.reInsertEntry(entries, idx)
 		return nil
 	}); err != nil {
 		return
@@ -243,8 +242,7 @@ func (c *Cron) setEntryActive(id EntryID, active bool) {
 			return errors.New("not found or unchanged")
 		}
 		(*entry).Active = active
-		heap.Remove(entries, idx)
-		heap.Push(entries, *entry)
+		c.reInsertEntry(entries, idx)
 		return nil
 	}); err != nil {
 		return
@@ -355,6 +353,11 @@ func removeEntry(entries *EntryHeap, id EntryID) {
 	if _, i := utils.FindIdx(*entries, findByIDFn(id)); i != -1 {
 		heap.Remove(entries, i)
 	}
+}
+
+func (c *Cron) reInsertEntry(entries *EntryHeap, idx int) {
+	entry := heap.Remove(entries, idx).(*Entry)
+	heap.Push(entries, entry)
 }
 
 func (c *Cron) getEntries() (out []Entry) {

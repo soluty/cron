@@ -250,7 +250,8 @@ func (c *Cron) addEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
 		opt(c, &entry)
 	}
 	if c.entryExists(entry.ID) {
-		return "", ErrIDAlreadyUsed
+		var zeroID EntryID
+		return zeroID, ErrIDAlreadyUsed
 	}
 	c.entries.With(func(entries *EntryHeap) { heap.Push(entries, &entry) })
 	c.entriesUpdated() // addEntry
@@ -403,7 +404,8 @@ func (c *Cron) getEntry(id EntryID) (out Entry, err error) {
 			out = **entry
 		}
 	})
-	if out.ID == "" {
+	var zeroID EntryID
+	if out.ID == zeroID {
 		return Entry{}, ErrEntryNotFound
 	}
 	return out, nil

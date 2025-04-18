@@ -656,6 +656,15 @@ func TestNextIDIsThreadSafe(t *testing.T) {
 	assert.Equal(t, 1000, len(m))
 }
 
+// Without hashmap: `BenchmarkAddJob-12    	   10000	    131823 ns/op`
+func BenchmarkAddJob(b *testing.B) {
+	clock := clockwork.NewFakeClockAt(time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC))
+	cron := New(WithClock(clock), WithParser(secondParser))
+	for i := 0; i < b.N; i++ {
+		_, _ = cron.AddJob("* * * * * *", func() {})
+	}
+}
+
 func TestLabelEntryOption(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
 	cron := New(WithClock(clock), WithParser(secondParser))

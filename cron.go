@@ -160,6 +160,16 @@ func (c *Cron) Enable(id EntryID) { c.setEntryActive(id, true) }
 // Disable ...
 func (c *Cron) Disable(id EntryID) { c.setEntryActive(id, false) }
 
+// UpdateSchedule ...
+func (c *Cron) UpdateSchedule(id EntryID, schedule Schedule) error {
+	return c.updateSchedule(id, schedule)
+}
+
+// UpdateScheduleWithSpec ...
+func (c *Cron) UpdateScheduleWithSpec(id EntryID, spec string) error {
+	return c.updateScheduleWithSpec(id, spec)
+}
+
 // Entries returns a snapshot of the cron entries.
 func (c *Cron) Entries() (out []Entry) { return c.getEntries() }
 
@@ -243,7 +253,7 @@ func (c *Cron) runNow(id EntryID) {
 	if err := c.entries.WithE(func(entries *Entries) error {
 		if entry, idx := utils.FindIdx((*entries).entriesHeap, findByIDFn(id)); entry != nil {
 			(*entry).Next = c.now()
-			reInsertEntry(&entries.entriesHeap, idx)
+			reInsertEntry(&entries.entriesHeap, idx) // runNow
 			return nil
 		}
 		return errors.New("not found")
@@ -300,12 +310,37 @@ func (c *Cron) setEntryActive(id EntryID, active bool) {
 			return errors.New("not found or unchanged")
 		}
 		(*entry).Active = active
-		reInsertEntry(&entries.entriesHeap, idx)
+		reInsertEntry(&entries.entriesHeap, idx) // setEntryActive
 		return nil
 	}); err != nil {
 		return
 	}
 	c.entriesUpdated() // setEntryActive
+}
+
+func (c *Cron) updateScheduleWithSpec(id EntryID, spec string) error {
+	schedule, err := c.parser.Parse(spec)
+	if err != nil {
+		return err
+	}
+	return c.updateSchedule(id, schedule)
+}
+
+func (c *Cron) updateSchedule(id EntryID, schedule Schedule) error {
+	if err := c.entries.WithE(func(entries *Entries) error {
+		entry, idx := utils.FindIdx((*entries).entriesHeap, findByIDFn(id))
+		if entry == nil {
+			return ErrEntryNotFound
+		}
+		(*entry).Schedule = schedule
+		(*entry).Next = schedule.Next(c.now())
+		reInsertEntry(&entries.entriesHeap, idx) // updateSchedule
+		return nil
+	}); err != nil {
+		return err
+	}
+	c.entriesUpdated() // updateSchedule
+	return nil
 }
 
 func (c *Cron) run() {

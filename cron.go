@@ -310,6 +310,7 @@ func (c *Cron) setEntryActive(id EntryID, active bool) {
 			return errors.New("not found or unchanged")
 		}
 		(*entry).Active = active
+		(*entry).Next = (*entry).Schedule.Next(c.now())
 		reInsertEntry(&entries.entriesHeap, idx) // setEntryActive
 		return nil
 	}); err != nil {

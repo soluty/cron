@@ -3,8 +3,11 @@ package cron
 import (
 	"container/heap"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"runtime/debug"
@@ -15,7 +18,6 @@ import (
 	"github.com/alaingilbert/cron/internal/mtx"
 	isync "github.com/alaingilbert/cron/internal/sync"
 	"github.com/alaingilbert/cron/internal/utils"
-	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 )
 
@@ -62,18 +64,30 @@ type ScheduleParser interface {
 	Parse(spec string) (Schedule, error)
 }
 
-func UUIDEntryIDFactory() EntryIDFactory {
-	return FuncEntryIDFactory(func() EntryID {
-		return EntryID(uuid.New().String())
-	})
-}
-
 type FuncEntryIDFactory func() EntryID
 
 func (f FuncEntryIDFactory) Next() EntryID { return f() }
 
 type EntryIDFactory interface {
 	Next() EntryID
+}
+
+// UUIDEntryIDFactory generate and format UUID V4
+func UUIDEntryIDFactory() EntryIDFactory {
+	return FuncEntryIDFactory(func() EntryID {
+		var uuid [16]byte
+		_, _ = io.ReadFull(rand.Reader, uuid[:])
+		uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
+		uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant is 10
+		var buf [36]byte
+		buf[8], buf[13], buf[18], buf[23] = '-', '-', '-', '-'
+		hex.Encode(buf[:], uuid[:4])
+		hex.Encode(buf[9:13], uuid[4:6])
+		hex.Encode(buf[14:18], uuid[6:8])
+		hex.Encode(buf[19:23], uuid[8:10])
+		hex.Encode(buf[24:], uuid[10:])
+		return EntryID(buf[:])
+	})
 }
 
 //-----------------------------------------------------------------------------

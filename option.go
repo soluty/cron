@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/alaingilbert/clockwork"
+	"github.com/jonboulle/clockwork"
 )
 
 // Config ...

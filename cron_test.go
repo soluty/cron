@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alaingilbert/clockwork"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 )
 

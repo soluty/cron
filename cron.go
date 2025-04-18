@@ -12,11 +12,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/alaingilbert/clockwork"
 	"github.com/alaingilbert/cron/internal/mtx"
 	isync "github.com/alaingilbert/cron/internal/sync"
 	"github.com/alaingilbert/cron/internal/utils"
 	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 )
 
 // Cron keeps track of any number of entries, invoking the associated func as

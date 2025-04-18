@@ -369,7 +369,7 @@ type JobWrapper func(IntoJob) Job
 func Once(job IntoJob) Job {
 	return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
 		c.Remove(e.ID)
-		return castIntoJob(job).Run(ctx, c, e)
+		return J(job).Run(ctx, c, e)
 	})
 }
 
@@ -380,7 +380,7 @@ func NWrapper(n int) JobWrapper {
 			if newCount := count.Add(1); int(newCount) == n {
 				c.Remove(e.ID)
 			}
-			return castIntoJob(job).Run(ctx, c, e)
+			return J(job).Run(ctx, c, e)
 		})
 	}
 }
@@ -396,7 +396,7 @@ func SkipIfStillRunning(j IntoJob) Job {
 	return FuncJob(func(ctx context.Context, c *Cron, e Entry) (err error) {
 		if running.CompareAndSwap(false, true) {
 			defer running.Store(false)
-			err = castIntoJob(j).Run(ctx, c, e)
+			err = J(j).Run(ctx, c, e)
 		} else {
 			return ErrJobAlreadyRunning
 		}
@@ -414,7 +414,7 @@ func JitterWrapper(duration time.Duration) JobWrapper {
 			case <-ctx.Done():
 				return ctx.Err()
 			}
-			return castIntoJob(j).Run(ctx, c, e)
+			return J(j).Run(ctx, c, e)
 		})
 	}
 }
@@ -430,7 +430,7 @@ func TimeoutWrapper(duration time.Duration) JobWrapper {
 		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
 			timeoutCtx, cancel := context.WithTimeout(ctx, duration)
 			defer cancel()
-			return castIntoJob(j).Run(timeoutCtx, c, e)
+			return J(j).Run(timeoutCtx, c, e)
 		})
 	}
 }
@@ -446,7 +446,7 @@ func DeadlineWrapper(deadline time.Time) JobWrapper {
 		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
 			deadlineCtx, cancel := context.WithDeadline(ctx, deadline)
 			defer cancel()
-			return castIntoJob(j).Run(deadlineCtx, c, e)
+			return J(j).Run(deadlineCtx, c, e)
 		})
 	}
 }
@@ -457,7 +457,7 @@ func WithDeadline(deadline time.Time, job IntoJob) Job {
 
 // Chain `Chain(j, w1, w2, w3)` -> `w3(w2(w1(j)))`
 func Chain(j IntoJob, wrappers ...JobWrapper) Job {
-	job := castIntoJob(j)
+	job := J(j)
 	for _, w := range wrappers {
 		job = w(job)
 	}

@@ -113,13 +113,18 @@ func (c *Cron) Start() (started bool) { return c.startAsync() }
 func (c *Cron) Stop() <-chan struct{} { return c.stop() }
 
 // AddJob adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) AddJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
-	return c.addJob(spec, cmd, opts...)
+func (c *Cron) AddJob(spec string, job IntoJob, opts ...EntryOption) (EntryID, error) {
+	return c.addJob(spec, job, opts...)
+}
+
+// AddJob1 adds a Job to the Cron to be run on the given schedule.
+func (c *Cron) AddJob1(spec string, job Job, opts ...EntryOption) (EntryID, error) {
+	return c.addJob(spec, job, opts...)
 }
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) Schedule(schedule Schedule, cmd Job, opts ...EntryOption) (EntryID, error) {
-	return c.schedule(schedule, cmd, opts...)
+func (c *Cron) Schedule(schedule Schedule, job Job, opts ...EntryOption) (EntryID, error) {
+	return c.schedule(schedule, job, opts...)
 }
 
 // AddEntry ...
@@ -226,18 +231,22 @@ func (c *Cron) runNow(id EntryID) {
 	c.entriesUpdated() // runNow
 }
 
-func (c *Cron) addJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
+func (c *Cron) addJob(spec string, job IntoJob, opts ...EntryOption) (EntryID, error) {
+	return c.addJob1(spec, castIntoJob(job), opts...)
+}
+
+func (c *Cron) addJob1(spec string, job Job, opts ...EntryOption) (EntryID, error) {
 	schedule, err := c.parser.Parse(spec)
 	if err != nil {
 		return "", err
 	}
-	return c.schedule(schedule, castIntoJob(cmd), opts...)
+	return c.schedule(schedule, job, opts...)
 }
 
-func (c *Cron) schedule(schedule Schedule, cmd Job, opts ...EntryOption) (EntryID, error) {
+func (c *Cron) schedule(schedule Schedule, job Job, opts ...EntryOption) (EntryID, error) {
 	entry := Entry{
 		ID:       c.idFactory.Next(),
-		job:      cmd,
+		job:      job,
 		Schedule: schedule,
 		Next:     schedule.Next(c.now()),
 		Active:   true,

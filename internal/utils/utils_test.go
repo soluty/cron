@@ -2,11 +2,8 @@ package utils
 
 import (
 	"github.com/stretchr/testify/assert"
-	"math/rand"
 	"reflect"
-	"sort"
 	"testing"
-	"time"
 )
 
 func TestPtr(t *testing.T) {
@@ -113,38 +110,6 @@ func TestApplyOptions(t *testing.T) {
 	c := &Config{}
 	ApplyOptions(c, []func(*Config){Opt1, Opt2})
 	assert.Equal(t, &Config{A: "hello", B: "world"}, c)
-}
-
-func TestInsertionSort(t *testing.T) {
-	arr := []int{4, 3, 1, 2, 5, 6, 7, 8, 9} // first 4 elements are unsorted
-	InsertionSortPartial(arr, 4, func(a, b int) bool { return a < b })
-	assert.Equal(t, arr, []int{1, 2, 3, 4, 5, 6, 7, 8, 9})
-}
-
-func generateTestData(size int, unsortedPrefix int) []int {
-	data := make([]int, size)
-	for i := range data {
-		data[i] = i
-	}
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	r.Shuffle(unsortedPrefix, func(i, j int) {
-		data[i], data[j] = data[j], data[i]
-	})
-	return data
-}
-
-func BenchmarkInsertionSortPartial(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		arr := generateTestData(100, 10)
-		InsertionSortPartial(arr, 10, func(a, b int) bool { return a < b })
-	}
-}
-
-func BenchmarkSortSlice(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		arr := generateTestData(100, 10)
-		sort.Slice(arr, func(i, j int) bool { return arr[i] < arr[j] })
-	}
 }
 
 func TestSome(t *testing.T) {

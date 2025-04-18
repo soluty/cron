@@ -201,6 +201,32 @@ func (j *Job23Wrapper) Run(ctx context.Context, c *Cron, e Entry) error {
 type IntoJob any
 
 // J is a helper to turn a IntoJob into a Job
+// Any of these functions, or anything that have a "Run" method
+// with one of these signatures can be casted into a Job.
+// func()
+// func() error
+// func(context.Context)
+// func(context.Context) error
+// func(cron.EntryID)
+// func(cron.EntryID) error
+// func(cron.Entry)
+// func(cron.Entry) error
+// func(*cron.Cron)
+// func(*cron.Cron) error
+// func(context.Context, cron.EntryID)
+// func(context.Context, cron.EntryID) error
+// func(context.Context, cron.Entry)
+// func(context.Context, cron.Entry) error
+// func(context.Context, *cron.Cron)
+// func(context.Context, *cron.Cron) error
+// func(*cron.Cron, cron.EntryID)
+// func(*cron.Cron, cron.EntryID) error
+// func(*cron.Cron, cron.Entry)
+// func(*cron.Cron, cron.Entry) error
+// func(context.Context, *cron.Cron, cron.EntryID)
+// func(context.Context, *cron.Cron, cron.EntryID) error
+// func(context.Context, *cron.Cron, cron.Entry)
+// func(context.Context, *cron.Cron, cron.Entry) error
 func J(v IntoJob) Job { return castIntoJob(v) }
 
 func castIntoJob(v IntoJob) Job {

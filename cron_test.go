@@ -934,6 +934,16 @@ func TestAddEntry(t *testing.T) {
 	assert.Equal(t, int32(2), calls.Load())
 }
 
+func TestAddJob1(t *testing.T) {
+	var calls atomic.Int32
+	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
+	cron := New(WithClock(clock), WithParser(secondParser))
+	_, _ = cron.AddJob1("* * * * * ?", baseJob{&calls})
+	cron.Start()
+	advanceAndCycle(cron, time.Second)
+	assert.Equal(t, int32(1), calls.Load())
+}
+
 func TestIsRunning(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 59, 59, 0, time.UTC))
 	cron := New(WithClock(clock), WithParser(secondParser))

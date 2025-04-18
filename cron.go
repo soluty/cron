@@ -101,7 +101,7 @@ func (c *Cron) AddJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, e
 }
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) Schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
+func (c *Cron) Schedule(schedule Schedule, cmd Job, opts ...EntryOption) (EntryID, error) {
 	return c.schedule(schedule, cmd, opts...)
 }
 
@@ -214,13 +214,13 @@ func (c *Cron) addJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, e
 	if err != nil {
 		return "", err
 	}
-	return c.schedule(schedule, cmd, opts...)
+	return c.schedule(schedule, castIntoJob(cmd), opts...)
 }
 
-func (c *Cron) schedule(schedule Schedule, cmd IntoJob, opts ...EntryOption) (EntryID, error) {
+func (c *Cron) schedule(schedule Schedule, cmd Job, opts ...EntryOption) (EntryID, error) {
 	entry := Entry{
 		ID:       EntryID(uuid.New().String()),
-		job:      castIntoJob(cmd),
+		job:      cmd,
 		Schedule: schedule,
 		Next:     schedule.Next(c.now()),
 		Active:   true,

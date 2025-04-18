@@ -348,7 +348,7 @@ func TestStopWithoutStart(t *testing.T) {
 // Simple job that increment an atomic counter every time the job is run
 type baseJob struct{ calls *atomic.Int32 }
 
-func (j baseJob) Run(context.Context, EntryID) error {
+func (j baseJob) Run(context.Context, *Cron, Entry) error {
 	j.calls.Add(1)
 	return nil
 }
@@ -358,8 +358,9 @@ type namedJob struct {
 	name  string
 }
 
-func (t namedJob) Run() {
+func (t namedJob) Run(context.Context, *Cron, Entry) error {
 	t.calls.Add(1)
+	return nil
 }
 
 // Test that adding an invalid job spec returns an error
@@ -508,7 +509,10 @@ func TestJobWithZeroTimeDoesNotRun(t *testing.T) {
 	cron := New(WithClock(clock), WithParser(secondParser))
 	var calls atomic.Int32
 	_, _ = cron.AddJob("* * * * * *", baseJob{&calls})
-	_, _ = cron.Schedule(new(ZeroSchedule), func() { t.Error("expected zero task will not run") })
+	_, _ = cron.Schedule(new(ZeroSchedule), FuncJob(func(context.Context, *Cron, Entry) error {
+		t.Error("expected zero task will not run")
+		return nil
+	}))
 	cron.Start()
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), calls.Load())
@@ -543,8 +547,8 @@ func TestScheduleAfterRemoval(t *testing.T) {
 	var calls atomic.Int32
 	clock := clockwork.NewFakeClockAt(time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC))
 	cron := New(WithClock(clock), WithParser(secondParser))
-	hourJob, _ := cron.Schedule(Every(time.Hour), func() {})
-	_, _ = cron.Schedule(Every(time.Second), func() {
+	hourJob, _ := cron.Schedule(Every(time.Hour), FuncJob(func(context.Context, *Cron, Entry) error { return nil }))
+	_, _ = cron.Schedule(Every(time.Second), FuncJob(func(context.Context, *Cron, Entry) error {
 		switch calls.Load() {
 		case 0:
 			calls.Add(1)
@@ -557,7 +561,8 @@ func TestScheduleAfterRemoval(t *testing.T) {
 		case 3:
 			panic("unexpected 3rd call")
 		}
-	})
+		return nil
+	}))
 	cron.Start()
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), calls.Load())

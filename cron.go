@@ -251,7 +251,8 @@ func (c *Cron) addJob(spec string, job IntoJob, opts ...EntryOption) (EntryID, e
 func (c *Cron) addJob1(spec string, job Job, opts ...EntryOption) (EntryID, error) {
 	schedule, err := c.parser.Parse(spec)
 	if err != nil {
-		return "", err
+		var zeroID EntryID
+		return zeroID, err
 	}
 	return c.schedule(schedule, job, opts...)
 }

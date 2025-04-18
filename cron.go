@@ -241,14 +241,6 @@ func findByIDFn(id EntryID) func(e *Entry) bool {
 	return func(e *Entry) bool { return e.ID == id }
 }
 
-func (c *Cron) sortEntries(entries *EntryHeap) {
-	sortedEntries := new(EntryHeap)
-	for len(*entries) > 0 {
-		heap.Push(sortedEntries, heap.Pop(entries).(*Entry))
-	}
-	*entries = *sortedEntries
-}
-
 func (c *Cron) runNow(id EntryID) {
 	if err := c.entries.WithE(func(entries *Entries) error {
 		if entry, idx := utils.FindIdx((*entries).entriesHeap, findByIDFn(id)); entry != nil {
@@ -418,6 +410,14 @@ func (c *Cron) setLocation(newLoc *time.Location) {
 	c.location.Set(newLoc)
 	c.setEntriesNext()
 	c.entriesUpdated() // setLocation
+}
+
+func (c *Cron) sortEntries(entries *EntryHeap) {
+	sortedEntries := new(EntryHeap)
+	for len(*entries) > 0 {
+		heap.Push(sortedEntries, heap.Pop(entries).(*Entry))
+	}
+	*entries = *sortedEntries
 }
 
 // Reset all entries "Next" property.

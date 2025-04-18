@@ -413,10 +413,7 @@ func (c *Cron) getEntry(id EntryID) (out Entry, err error) {
 
 func (c *Cron) entryIsRunning(id EntryID) bool {
 	val, ok := c.runningJobsMap.Load(id)
-	if !ok {
-		return false
-	}
-	return val.Load() > 0
+	return ok && val.Load() > 0
 }
 
 func (c *Cron) entryExists(id EntryID) bool {

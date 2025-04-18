@@ -35,6 +35,7 @@ type Cron struct {
 	location         mtx.RWMtx[*time.Location]         // Thread-safe time zone location
 	logger           *log.Logger                       // Logger for scheduler events, errors, and diagnostics
 	parser           ScheduleParser                    // Parses cron expressions into schedule objects
+	idFactory        EntryIDFactory                    // Generates a new unique EntryID for each scheduled job
 }
 
 // ErrEntryNotFound ...
@@ -61,6 +62,20 @@ type ScheduleParser interface {
 	Parse(spec string) (Schedule, error)
 }
 
+func UUIDEntryIDFactory() EntryIDFactory {
+	return FuncEntryIDFactory(func() EntryID {
+		return EntryID(uuid.New().String())
+	})
+}
+
+type FuncEntryIDFactory func() EntryID
+
+func (f FuncEntryIDFactory) Next() EntryID { return f() }
+
+type EntryIDFactory interface {
+	Next() EntryID
+}
+
 //-----------------------------------------------------------------------------
 
 // New returns a new Cron job runner
@@ -71,6 +86,7 @@ func New(opts ...Option) *Cron {
 	parentCtx := utils.Or(cfg.Ctx, context.Background())
 	logger := utils.Or(cfg.Logger, log.New(os.Stderr, "cron", log.LstdFlags))
 	parser := utils.Or(cfg.Parser, ScheduleParser(standardParser))
+	idFactory := utils.Or(cfg.IDFactory, UUIDEntryIDFactory())
 	ctx, cancel := context.WithCancel(parentCtx)
 	return &Cron{
 		cond:           sync.Cond{L: &sync.Mutex{}},
@@ -82,6 +98,7 @@ func New(opts ...Option) *Cron {
 		location:       mtx.NewRWMtx(location),
 		logger:         logger,
 		parser:         parser,
+		idFactory:      idFactory,
 	}
 }
 
@@ -219,7 +236,7 @@ func (c *Cron) addJob(spec string, cmd IntoJob, opts ...EntryOption) (EntryID, e
 
 func (c *Cron) schedule(schedule Schedule, cmd Job, opts ...EntryOption) (EntryID, error) {
 	entry := Entry{
-		ID:       EntryID(uuid.New().String()),
+		ID:       c.idFactory.Next(),
 		job:      cmd,
 		Schedule: schedule,
 		Next:     schedule.Next(c.now()),

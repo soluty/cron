@@ -10,11 +10,12 @@ import (
 
 // Config ...
 type Config struct {
-	Ctx      context.Context
-	Location *time.Location
-	Clock    clockwork.Clock
-	Logger   *log.Logger
-	Parser   ScheduleParser
+	Ctx       context.Context
+	Location  *time.Location
+	Clock     clockwork.Clock
+	Logger    *log.Logger
+	Parser    ScheduleParser
+	IDFactory EntryIDFactory
 }
 
 // Option represents a modification to the default behavior of a Cron.
@@ -52,5 +53,12 @@ func WithLogger(logger *log.Logger) Option {
 func WithParser(p ScheduleParser) Option {
 	return func(c *Config) {
 		c.Parser = p
+	}
+}
+
+// WithIDFactory ...
+func WithIDFactory(idFactory EntryIDFactory) Option {
+	return func(c *Config) {
+		c.IDFactory = idFactory
 	}
 }

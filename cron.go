@@ -79,13 +79,12 @@ func UUIDEntryIDFactory() EntryIDFactory {
 		_, _ = io.ReadFull(rand.Reader, uuid[:])
 		uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
 		uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant is 10
-		var buf [36]byte
-		buf[8], buf[13], buf[18], buf[23] = '-', '-', '-', '-'
+		var buf [32]byte
 		hex.Encode(buf[:], uuid[:4])
-		hex.Encode(buf[9:13], uuid[4:6])
-		hex.Encode(buf[14:18], uuid[6:8])
-		hex.Encode(buf[19:23], uuid[8:10])
-		hex.Encode(buf[24:], uuid[10:])
+		hex.Encode(buf[8:12], uuid[4:6])
+		hex.Encode(buf[12:16], uuid[6:8])
+		hex.Encode(buf[16:20], uuid[8:10])
+		hex.Encode(buf[20:], uuid[10:])
 		return EntryID(buf[:])
 	})
 }

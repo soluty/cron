@@ -647,7 +647,7 @@ func TestNextIDIsThreadSafe(t *testing.T) {
 	}
 	wg.Wait()
 	m := make(map[EntryID]bool)
-	for _, e := range cron.entries.Get() {
+	for _, e := range cron.entries.Get().entriesHeap {
 		if _, ok := m[e.ID]; ok {
 			t.Fatal()
 		}
@@ -657,6 +657,7 @@ func TestNextIDIsThreadSafe(t *testing.T) {
 }
 
 // Without hashmap: `BenchmarkAddJob-12    	   10000	    131823 ns/op`
+// With hashmap   : `BenchmarkAddJob-12    	  437586	      2766 ns/op`
 func BenchmarkAddJob(b *testing.B) {
 	clock := clockwork.NewFakeClockAt(time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC))
 	cron := New(WithClock(clock), WithParser(secondParser))

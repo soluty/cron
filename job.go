@@ -208,6 +208,9 @@ func (j *Job23Wrapper) Run(ctx context.Context, c *Cron, e Entry) error {
 
 type IntoJob any
 
+// J is a helper to turn a IntoJob into a Job
+func J(v IntoJob) Job { return castIntoJob(v) }
+
 func castIntoJob(v IntoJob) Job {
 	switch j := v.(type) {
 	case func():

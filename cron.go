@@ -336,22 +336,6 @@ func (c *Cron) updateSchedule(id EntryID, schedule Schedule) error {
 	return nil
 }
 
-func (c *Cron) run() {
-	for {
-		var updated context.CancelFunc
-		select {
-		case <-c.clock.After(c.getNextDelay()):
-		case updated = <-c.update:
-		case <-c.ctx.Done():
-			return
-		}
-		c.runDueEntries()
-		if updated != nil {
-			updated()
-		}
-	}
-}
-
 func (c *Cron) getNextTime() (out time.Time) {
 	c.entries.RWith(func(entries Entries) {
 		if e := entries.entriesHeap.Peek(); e != nil && e.Active {
@@ -367,6 +351,22 @@ func (c *Cron) getNextDelay() (out time.Duration) {
 		return 100_000 * time.Hour // If there are no entries yet, just sleep - it still handles new entries and stop requests.
 	} else {
 		return nextTime.Sub(c.now())
+	}
+}
+
+func (c *Cron) run() {
+	for {
+		var updated context.CancelFunc
+		select {
+		case <-c.clock.After(c.getNextDelay()):
+		case updated = <-c.update:
+		case <-c.ctx.Done():
+			return
+		}
+		c.runDueEntries()
+		if updated != nil {
+			updated()
+		}
 	}
 }
 

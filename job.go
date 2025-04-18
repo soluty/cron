@@ -27,18 +27,12 @@ type Job8 interface {
 }
 type Job9 interface{ Run(*Cron) }
 type Job10 interface{ Run(*Cron) error }
-type Job11 interface {
-	Run(context.Context, *Cron)
-}
+type Job11 interface{ Run(context.Context, *Cron) }
 type Job12 interface {
 	Run(context.Context, *Cron) error
 }
-type Job13 interface {
-	Run(*Cron, EntryID)
-}
-type Job14 interface {
-	Run(*Cron, EntryID) error
-}
+type Job13 interface{ Run(*Cron, EntryID) }
+type Job14 interface{ Run(*Cron, EntryID) error }
 type Job15 interface {
 	Run(context.Context, *Cron, EntryID)
 }
@@ -52,9 +46,7 @@ type Job20 interface {
 	Run(context.Context, Entry) error
 }
 type Job21 interface{ Run(*Cron, Entry) }
-type Job22 interface {
-	Run(*Cron, Entry) error
-}
+type Job22 interface{ Run(*Cron, Entry) error }
 type Job23 interface {
 	Run(context.Context, *Cron, Entry)
 }

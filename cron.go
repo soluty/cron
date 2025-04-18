@@ -354,7 +354,7 @@ func (c *Cron) run() {
 
 func (c *Cron) getNextTime() (out time.Time) {
 	c.entries.RWith(func(entries Entries) {
-		if e := entries.entriesHeap.Peek(); e != nil {
+		if e := entries.entriesHeap.Peek(); e != nil && e.Active {
 			out = e.Next
 		}
 	})

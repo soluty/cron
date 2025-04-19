@@ -2,6 +2,7 @@ package cron
 
 import (
 	"context"
+	"github.com/jonboulle/clockwork"
 	"sync/atomic"
 	"time"
 
@@ -454,7 +455,7 @@ func WithJitter(duration time.Duration, job IntoJob) Job {
 func TimeoutWrapper(duration time.Duration) JobWrapper {
 	return func(j IntoJob) Job {
 		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
-			timeoutCtx, cancel := context.WithTimeout(ctx, duration)
+			timeoutCtx, cancel := clockwork.WithTimeout(ctx, c.clock, duration)
 			defer cancel()
 			return J(j).Run(timeoutCtx, c, e)
 		})
@@ -470,7 +471,7 @@ func WithTimeout(d time.Duration, job IntoJob) Job {
 func DeadlineWrapper(deadline time.Time) JobWrapper {
 	return func(j IntoJob) Job {
 		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
-			deadlineCtx, cancel := context.WithDeadline(ctx, deadline)
+			deadlineCtx, cancel := clockwork.WithDeadline(ctx, c.clock, deadline)
 			defer cancel()
 			return J(j).Run(deadlineCtx, c, e)
 		})

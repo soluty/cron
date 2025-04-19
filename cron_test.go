@@ -1002,3 +1002,30 @@ func TestDisabledIgnoredByGetNextTime(t *testing.T) {
 	cron.Start()
 	assert.True(t, cron.GetNextTime().IsZero())
 }
+
+func TestWithTimeout(t *testing.T) {
+	var calls atomic.Int32
+	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 59, 59, 0, time.UTC))
+	cron := New(WithClock(clock), WithParser(secondParser))
+	c1 := make(chan struct{})
+	c2 := make(chan struct{})
+	_, _ = cron.AddJob("0 0 1 * * *", WithTimeout(time.Minute, func(ctx context.Context) {
+		afterCh := clock.After(time.Hour)
+		close(c1)
+		select {
+		case <-afterCh:
+		case <-ctx.Done():
+		}
+		calls.Add(1)
+		close(c2)
+	}))
+	cron.Start()
+	advanceAndCycleNoWait(cron, time.Second)
+	<-c1
+	advanceAndCycleNoWait(cron, time.Second)
+	advanceAndCycleNoWait(cron, time.Second)
+	assert.Equal(t, int32(0), calls.Load())
+	advanceAndCycleNoWait(cron, time.Minute)
+	<-c2
+	assert.Equal(t, int32(1), calls.Load())
+}

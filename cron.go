@@ -618,11 +618,9 @@ func (c *Cron) cancelRun(entryID EntryID, runID RunID) {
 
 func (c *Cron) runningJobs() (out []JobRunPublic) {
 	for v := range c.runningJobsMap.IterValues() {
-		if v.Len() > 0 {
-			v.Each(func(run *JobRun) {
-				out = append(out, run.Export())
-			})
-		}
+		v.Each(func(run *JobRun) {
+			out = append(out, run.Export())
+		})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].CreatedAt.Before(out[j].CreatedAt)
@@ -632,11 +630,9 @@ func (c *Cron) runningJobs() (out []JobRunPublic) {
 
 func (c *Cron) runningJobsFor(entryID EntryID) (out []JobRunPublic) {
 	if jobRuns, ok := c.runningJobsMap.Load(entryID); ok {
-		if jobRuns.Len() > 0 {
-			jobRuns.Each(func(run *JobRun) {
-				out = append(out, run.Export())
-			})
-		}
+		jobRuns.Each(func(run *JobRun) {
+			out = append(out, run.Export())
+		})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].CreatedAt.Before(out[j].CreatedAt)

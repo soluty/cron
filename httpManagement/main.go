@@ -187,6 +187,7 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 		var b bytes.Buffer
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
+		jobRuns := c.RunningJobsFor(entryID)
 		b.WriteString(css + `
 ` + menu + `
 <h1>` + string(entry.ID) + `</h1>
@@ -200,6 +201,38 @@ Active: ` + utils.Ternary(entry.Active, `<span class="active">T</span>`, `<span 
 		<input type="submit" value="Update label" id="label" />
 	</form>
 </div>
+<hr />
+Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
+<table>
+	<thead>
+		<th>Entry ID</th>
+		<th>Run ID</th>
+		<th>Label</th>
+		<th>Started at</th>
+		<th>Actions</th>
+	</thead>
+	<tbody>
+`)
+		for _, jobRun := range jobRuns {
+			b.WriteString(`
+	<tr>
+		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `">` + string(jobRun.Entry.ID) + `</a></span></td>
+		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `/runs/` + string(jobRun.RunID) + `">` + string(jobRun.RunID) + `</a></span></td>
+		<td>` + jobRun.Entry.Label + `</td>
+		<td>` + jobRun.StartedAt.Format(time.DateTime) + `</td>
+		<td>
+			<form method="POST" class="d-inline-block">
+				<input type="hidden" name="formName" value="cancelRun" />
+				<input type="hidden" name="entryID" value="` + string(jobRun.Entry.ID) + `" />
+				<input type="hidden" name="runID" value="` + string(jobRun.RunID) + `" />
+				<input type="submit" value="Cancel" />
+			</form>
+		</td>
+	</tr>`)
+		}
+		b.WriteString(`
+	</tbody>
+</table>
 `)
 		_, _ = w.Write(b.Bytes())
 	}
@@ -218,8 +251,12 @@ func postEntryHandler(c *cron.Cron) http.HandlerFunc {
 		if formName == "updateLabel" {
 			label := r.PostFormValue("label")
 			c.UpdateLabel(entryID, label)
+		} else if formName == "cancelRun" {
+			entryID := cron.EntryID(r.PostFormValue("entryID"))
+			runID := cron.RunID(r.PostFormValue("runID"))
+			c.CancelRun(entryID, runID)
 		}
-		w.Header().Set("Location", "/"+string(entryID))
+		w.Header().Set("Location", "/entries/"+string(entryID))
 		w.WriteHeader(http.StatusSeeOther)
 	}
 }
@@ -297,7 +334,7 @@ func postRunHandler(c *cron.Cron) http.HandlerFunc {
 			w.WriteHeader(http.StatusSeeOther)
 			return
 		}
-		w.Header().Set("Location", "/"+string(entryID))
+		w.Header().Set("Location", "/entries/"+string(entryID))
 		w.WriteHeader(http.StatusSeeOther)
 	}
 }

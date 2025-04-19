@@ -259,6 +259,9 @@ func (c *Cron) IsRunning(id EntryID) bool { return c.entryIsRunning(id) }
 // RunningJobs ...
 func (c *Cron) RunningJobs() []JobRunPublic { return c.runningJobs() }
 
+// RunningJobsFor ...
+func (c *Cron) RunningJobsFor(entryID EntryID) []JobRunPublic { return c.runningJobsFor(entryID) }
+
 // GetRun ...
 func (c *Cron) GetRun(entryID EntryID, runID RunID) (JobRunPublic, error) {
 	return c.getRun(entryID, runID)
@@ -617,6 +620,20 @@ func (c *Cron) runningJobs() (out []JobRunPublic) {
 	for v := range c.runningJobsMap.IterValues() {
 		if v.Len() > 0 {
 			v.Each(func(run *JobRun) {
+				out = append(out, run.Export())
+			})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	})
+	return
+}
+
+func (c *Cron) runningJobsFor(entryID EntryID) (out []JobRunPublic) {
+	if jobRuns, ok := c.runningJobsMap.Load(entryID); ok {
+		if jobRuns.Len() > 0 {
+			jobRuns.Each(func(run *JobRun) {
 				out = append(out, run.Export())
 			})
 		}

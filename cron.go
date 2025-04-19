@@ -72,8 +72,9 @@ func (e JobEventType) String() string {
 }
 
 type JobEvent struct {
-	Typ    JobEventType
-	JobRun JobRunPublic
+	Typ       JobEventType
+	JobRun    JobRunPublic
+	CreatedAt time.Time
 }
 
 type Entries struct {
@@ -636,6 +637,7 @@ type JobRun struct {
 	CreatedAt time.Time
 	ctx       context.Context
 	cancel    context.CancelFunc
+	events    []JobEvent
 }
 
 type jobRunInner struct {
@@ -646,12 +648,17 @@ type jobRunInner struct {
 	Panic       bool
 }
 
+func (j *JobRun) AddEvent(event JobEvent) {
+	j.events = append(j.events, event)
+}
+
 func (j *JobRun) Export() JobRunPublic {
 	innerCopy := j.inner.Get()
 	return JobRunPublic{
 		RunID:       j.RunID,
 		Entry:       j.Entry,
 		CreatedAt:   j.CreatedAt,
+		Events:      j.events,
 		StartedAt:   innerCopy.StartedAt,
 		CompletedAt: innerCopy.CompletedAt,
 		Error:       innerCopy.Error,
@@ -666,6 +673,7 @@ type JobRunPublic struct {
 	CreatedAt   time.Time
 	StartedAt   *time.Time
 	CompletedAt *time.Time
+	Events      []JobEvent
 	Error       error
 	Cancelled   bool
 	Panic       bool
@@ -705,22 +713,32 @@ func (c *Cron) runWithRecovery(jobRun *JobRun) {
 		if r := recover(); r != nil {
 			c.logger.Printf("%v\n%s\n", r, string(debug.Stack()))
 			jobRun.inner.With(func(inner *jobRunInner) { (*inner).Panic = true })
-			c.ps.Pub(entry.ID, JobEvent{Typ: CompletedPanic, JobRun: jobRun.Export()})
+			evt := JobEvent{Typ: CompletedPanic, JobRun: jobRun.Export(), CreatedAt: clock.Now()}
+			jobRun.AddEvent(evt)
+			c.ps.Pub(entry.ID, evt)
 		}
 		jobRun.inner.With(func(inner *jobRunInner) { (*inner).CompletedAt = utils.Ptr(clock.Now()) })
-		c.ps.Pub(entry.ID, JobEvent{Typ: Completed, JobRun: jobRun.Export()})
+		evt := JobEvent{Typ: Completed, JobRun: jobRun.Export(), CreatedAt: clock.Now()}
+		jobRun.AddEvent(evt)
+		c.ps.Pub(entry.ID, evt)
 	}()
 	jobRun.inner.With(func(inner *jobRunInner) { (*inner).StartedAt = utils.Ptr(clock.Now()) })
-	c.ps.Pub(entry.ID, JobEvent{Typ: BeforeStart, JobRun: jobRun.Export()})
+	evt := JobEvent{Typ: BeforeStart, JobRun: jobRun.Export(), CreatedAt: clock.Now()}
+	jobRun.AddEvent(evt)
+	c.ps.Pub(entry.ID, evt)
 	if err := entry.job.Run(jobRun.ctx, c, entry); err != nil {
 		msg := fmt.Sprintf("error running job %s", entry.ID)
 		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
 		msg += " : " + err.Error()
 		c.logger.Println(msg)
 		jobRun.inner.With(func(inner *jobRunInner) { (*inner).Error = err })
-		c.ps.Pub(entry.ID, JobEvent{Typ: CompletedErr, JobRun: jobRun.Export()})
+		evt := JobEvent{Typ: CompletedErr, JobRun: jobRun.Export(), CreatedAt: clock.Now()}
+		jobRun.AddEvent(evt)
+		c.ps.Pub(entry.ID, evt)
 	} else {
-		c.ps.Pub(entry.ID, JobEvent{Typ: CompletedNoErr, JobRun: jobRun.Export()})
+		evt := JobEvent{Typ: CompletedNoErr, JobRun: jobRun.Export(), CreatedAt: clock.Now()}
+		jobRun.AddEvent(evt)
+		c.ps.Pub(entry.ID, evt)
 	}
 }
 

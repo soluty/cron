@@ -1058,7 +1058,7 @@ func TestWithDeadline(t *testing.T) {
 }
 
 func TestEventsString(t *testing.T) {
-	assert.Equal(t, "BeforeStart", BeforeStart.String())
+	assert.Equal(t, "Start", Start.String())
 	assert.Equal(t, "Completed", Completed.String())
 	assert.Equal(t, "CompletedNoErr", CompletedNoErr.String())
 	assert.Equal(t, "CompletedErr", CompletedErr.String())

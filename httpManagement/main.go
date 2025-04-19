@@ -16,6 +16,7 @@ func GetMux(c *cron.Cron) *http.ServeMux {
 	mux.HandleFunc("GET /entries/{entryID}/{$}", getEntryHandler(c))
 	mux.HandleFunc("POST /entries/{entryID}/{$}", postEntryHandler(c))
 	mux.HandleFunc("GET /entries/{entryID}/runs/{runID}/{$}", getRunHandler(c))
+	mux.HandleFunc("POST /entries/{entryID}/runs/{runID}/{$}", postRunHandler(c))
 	return mux
 }
 
@@ -42,6 +43,12 @@ var css = `
 </style>
 `
 
+var menu = `
+<a href="/">home</a>
+<hr />
+Current time: ` + time.Now().Format(time.DateTime) + `<br />
+<hr />`
+
 func getIndexHandler(c *cron.Cron) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var b bytes.Buffer
@@ -51,7 +58,7 @@ func getIndexHandler(c *cron.Cron) http.HandlerFunc {
 		entries := c.Entries()
 		b.WriteString(css + `
 
-Current time: ` + time.Now().Format(time.DateTime) + `<br />
+` + menu + `
 Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
 <table>
 	<thead>
@@ -181,13 +188,18 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 		b.WriteString(css + `
-<a href="/">back</a><br />
+` + menu + `
 <h1>` + string(entry.ID) + `</h1>
-<form method="POST">
-	<input type="hidden" name="formName" value="updateLabel" />
-	<input type="text" name="label" value="` + entry.Label + `" />
-	<input type="submit" value="Update label" />
-</form>
+Active: ` + utils.Ternary(entry.Active, `<span class="active">T</span>`, `<span class="inactive">F</span>`) + `<br />
+<hr />
+<div>
+	<label for="label">Job label:</label>
+	<form method="POST">
+		<input type="hidden" name="formName" value="updateLabel" />
+		<input type="text" name="label" value="` + entry.Label + `" placeholder="Label" />
+		<input type="submit" value="Update label" id="label" />
+	</form>
+</div>
 `)
 		_, _ = w.Write(b.Bytes())
 	}
@@ -232,10 +244,22 @@ func getRunHandler(c *cron.Cron) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 		b.WriteString(css + `
-<a href="/">back</a><br />
+` + menu + `
 <h1>Entry: ` + string(entry.ID) + `</h1>
 <h2>Run: ` + string(jobRun.RunID) + `</h2>
+<form method="POST" class="d-inline-block">
+	<input type="hidden" name="formName" value="cancelRun" />
+	<input type="hidden" name="entryID" value="` + string(jobRun.Entry.ID) + `" />
+	<input type="hidden" name="runID" value="` + string(jobRun.RunID) + `" />
+	<input type="submit" value="Cancel" />
+</form>
+<hr />
+Events:<br />
 <table>
+	<thead>
+		<tr><th>Type</th><th>Created at</th></tr>
+	</thead>
+	<tbody>
 `)
 		for _, evt := range jobRun.Events {
 			b.WriteString(`
@@ -243,8 +267,37 @@ func getRunHandler(c *cron.Cron) http.HandlerFunc {
 `)
 		}
 		b.WriteString(`
+	</tbody>
 </table>
 `)
 		_, _ = w.Write(b.Bytes())
+	}
+}
+
+func postRunHandler(c *cron.Cron) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		entryID := cron.EntryID(r.PathValue("entryID"))
+		runID := cron.RunID(r.PathValue("runID"))
+		entry, err := c.Entry(entryID)
+		if err != nil {
+			w.Header().Set("Location", "/")
+			w.WriteHeader(http.StatusSeeOther)
+			return
+		}
+		jobRun, err := c.GetRun(entryID, runID)
+		if err != nil {
+			w.Header().Set("Location", "/")
+			w.WriteHeader(http.StatusSeeOther)
+			return
+		}
+		formName := r.PostFormValue("formName")
+		if formName == "cancelRun" {
+			c.CancelRun(entry.ID, jobRun.RunID)
+			w.Header().Set("Location", "/")
+			w.WriteHeader(http.StatusSeeOther)
+			return
+		}
+		w.Header().Set("Location", "/"+string(entryID))
+		w.WriteHeader(http.StatusSeeOther)
 	}
 }

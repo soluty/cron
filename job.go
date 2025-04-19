@@ -436,7 +436,7 @@ func JitterWrapper(duration time.Duration) JobWrapper {
 		return FuncJob(func(ctx context.Context, c *Cron, e Entry) error {
 			delay := utils.RandDuration(0, max(duration, 0))
 			select {
-			case <-time.After(delay):
+			case <-c.clock.After(delay):
 			case <-ctx.Done():
 				return ctx.Err()
 			}

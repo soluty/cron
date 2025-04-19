@@ -996,10 +996,9 @@ func TestUpdateSchedule(t *testing.T) {
 }
 
 func TestDisabledIgnoredByGetNextTime(t *testing.T) {
-	var calls atomic.Int32
 	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
 	cron := New(WithClock(clock), WithParser(secondParser))
-	_, _ = cron.AddJob("* * * * * *", baseJob{&calls}, Disabled)
+	_, _ = cron.AddJob("* * * * * *", func() {}, Disabled)
 	cron.Start()
 	assert.True(t, cron.GetNextTime().IsZero())
 }

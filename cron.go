@@ -62,6 +62,8 @@ func (e JobEventType) String() string {
 		return "CompletedNoErr"
 	case CompletedErr:
 		return "CompletedErr"
+	case CompletedPanic:
+		return "CompletedPanic"
 	default:
 		return "Unknown"
 	}

@@ -1057,6 +1057,15 @@ func TestWithDeadline(t *testing.T) {
 	assert.Equal(t, int32(1), calls.Load())
 }
 
+func TestEventsString(t *testing.T) {
+	assert.Equal(t, "BeforeStart", BeforeStart.String())
+	assert.Equal(t, "Completed", Completed.String())
+	assert.Equal(t, "CompletedNoErr", CompletedNoErr.String())
+	assert.Equal(t, "CompletedErr", CompletedErr.String())
+	assert.Equal(t, "CompletedPanic", CompletedPanic.String())
+	assert.Equal(t, "Unknown", JobEventType(-3).String())
+}
+
 func TestEvents(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 59, 0, time.UTC))
 	cron := New(WithClock(clock), WithLogger(log.New(io.Discard, "", log.LstdFlags)))

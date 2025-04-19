@@ -13,8 +13,9 @@ func GetMux(c *cron.Cron) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", getIndexHandler(c))
 	mux.HandleFunc("POST /{$}", postIndexHandler(c))
-	mux.HandleFunc("GET /{entryID}/{$}", getEntryHandler(c))
-	mux.HandleFunc("POST /{entryID}/{$}", postEntryHandler(c))
+	mux.HandleFunc("GET /entries/{entryID}/{$}", getEntryHandler(c))
+	mux.HandleFunc("POST /entries/{entryID}/{$}", postEntryHandler(c))
+	mux.HandleFunc("GET /entries/{entryID}/runs/{runID}/{$}", getRunHandler(c))
 	return mux
 }
 
@@ -65,8 +66,8 @@ Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
 		for _, jobRun := range jobRuns {
 			b.WriteString(`
 	<tr>
-		<td><span class="monospace"><a href="/` + string(jobRun.Entry.ID) + `">` + string(jobRun.Entry.ID) + `</a></span></td>
-		<td><span class="monospace">` + string(jobRun.RunID) + `</span></td>
+		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `">` + string(jobRun.Entry.ID) + `</a></span></td>
+		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `/runs/` + string(jobRun.RunID) + `">` + string(jobRun.RunID) + `</a></span></td>
 		<td>` + jobRun.Entry.Label + `</td>
 		<td>` + jobRun.StartedAt.Format(time.DateTime) + `</td>
 		<td>
@@ -103,7 +104,7 @@ Entries (` + strconv.Itoa(len(entries)) + `)<br />
 		for _, entry := range entries {
 			b.WriteString(`
 <tr>
-	<td><span class="monospace"><a href="/` + string(entry.ID) + `">` + string(entry.ID) + `</a></span></td>
+	<td><span class="monospace"><a href="/entries/` + string(entry.ID) + `">` + string(entry.ID) + `</a></span></td>
 	<td>` + entry.Label + `</td>
 	<td>` + entry.Prev.Format(time.DateTime) + `</td>
 	<td>` + entry.Next.Format(time.DateTime) + `</td>
@@ -208,5 +209,42 @@ func postEntryHandler(c *cron.Cron) http.HandlerFunc {
 		}
 		w.Header().Set("Location", "/"+string(entryID))
 		w.WriteHeader(http.StatusSeeOther)
+	}
+}
+
+func getRunHandler(c *cron.Cron) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		entryID := cron.EntryID(r.PathValue("entryID"))
+		runID := cron.RunID(r.PathValue("runID"))
+		entry, err := c.Entry(entryID)
+		if err != nil {
+			w.Header().Set("Location", "/")
+			w.WriteHeader(http.StatusSeeOther)
+			return
+		}
+		jobRun, err := c.GetRun(entryID, runID)
+		if err != nil {
+			w.Header().Set("Location", "/")
+			w.WriteHeader(http.StatusSeeOther)
+			return
+		}
+		var b bytes.Buffer
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+		b.WriteString(css + `
+<a href="/">back</a><br />
+<h1>Entry: ` + string(entry.ID) + `</h1>
+<h2>Run: ` + string(jobRun.RunID) + `</h2>
+<table>
+`)
+		for _, evt := range jobRun.Events {
+			b.WriteString(`
+	<tr><td>` + evt.Typ.String() + `</td><td>` + evt.CreatedAt.Format(time.DateTime) + `</td></tr>
+`)
+		}
+		b.WriteString(`
+</table>
+`)
+		_, _ = w.Write(b.Bytes())
 	}
 }

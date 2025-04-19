@@ -28,20 +28,22 @@ import (
 // specified by the schedule. It may be started, stopped, and the entries may
 // be inspected while running.
 type Cron struct {
-	clock            clockwork.Clock                              // Clock interface (real or mock) used for timing
-	runningJobsCount atomic.Int32                                 // Count of currently running jobs
-	runningJobsMap   isync.Map[EntryID, *mtx.RWMtxSlice[*JobRun]] // Keep track of currently running jobs
-	cond             sync.Cond                                    // Signals when all jobs have completed
-	entries          mtx.RWMtx[Entries]                           // Thread-safe, sorted list of job entries
-	ctx              context.Context                              // Context to control the scheduler lifecycle
-	cancel           context.CancelFunc                           // Cancels the scheduler context
-	update           chan context.CancelFunc                      // Triggers update in the scheduler loop
-	running          atomic.Bool                                  // Indicates if the scheduler is currently running
-	location         mtx.RWMtx[*time.Location]                    // Thread-safe time zone location
-	logger           *log.Logger                                  // Logger for scheduler events, errors, and diagnostics
-	parser           ScheduleParser                               // Parses cron expressions into schedule objects
-	idFactory        EntryIDFactory                               // Generates a new unique EntryID for each scheduled job
-	ps               *pubsub.PubSub[EntryID, JobEvent]            //
+	clock             clockwork.Clock                              // Clock interface (real or mock) used for timing
+	runningJobsCount  atomic.Int32                                 // Count of currently running jobs
+	runningJobsMap    isync.Map[EntryID, *mtx.RWMtxSlice[*JobRun]] // Keep track of currently running jobs
+	cond              sync.Cond                                    // Signals when all jobs have completed
+	entries           mtx.RWMtx[Entries]                           // Thread-safe, sorted list of job entries
+	ctx               context.Context                              // Context to control the scheduler lifecycle
+	cancel            context.CancelFunc                           // Cancels the scheduler context
+	update            chan context.CancelFunc                      // Triggers update in the scheduler loop
+	running           atomic.Bool                                  // Indicates if the scheduler is currently running
+	location          mtx.RWMtx[*time.Location]                    // Thread-safe time zone location
+	logger            *log.Logger                                  // Logger for scheduler events, errors, and diagnostics
+	parser            ScheduleParser                               // Parses cron expressions into schedule objects
+	idFactory         EntryIDFactory                               // Generates a new unique EntryID for each scheduled job
+	ps                *pubsub.PubSub[EntryID, JobEvent]            //
+	jobRunCreatedCh   chan *JobRun                                 //
+	jobRunCompletedCh chan *JobRun                                 //
 }
 
 type JobEventType int
@@ -151,17 +153,19 @@ func New(opts ...Option) *Cron {
 	idFactory := utils.Or(cfg.IDFactory, UUIDEntryIDFactory())
 	ctx, cancel := context.WithCancel(parentCtx)
 	return &Cron{
-		cond:           sync.Cond{L: &sync.Mutex{}},
-		clock:          clock,
-		ctx:            ctx,
-		cancel:         cancel,
-		runningJobsMap: isync.Map[EntryID, *mtx.RWMtxSlice[*JobRun]]{},
-		update:         make(chan context.CancelFunc),
-		location:       mtx.NewRWMtx(location),
-		logger:         logger,
-		parser:         parser,
-		idFactory:      idFactory,
-		ps:             pubsub.NewPubSub[EntryID, JobEvent](),
+		cond:              sync.Cond{L: &sync.Mutex{}},
+		clock:             clock,
+		ctx:               ctx,
+		cancel:            cancel,
+		runningJobsMap:    isync.Map[EntryID, *mtx.RWMtxSlice[*JobRun]]{},
+		update:            make(chan context.CancelFunc),
+		location:          mtx.NewRWMtx(location),
+		logger:            logger,
+		parser:            parser,
+		idFactory:         idFactory,
+		ps:                pubsub.NewPubSub[EntryID, JobEvent](),
+		jobRunCreatedCh:   make(chan *JobRun),
+		jobRunCompletedCh: make(chan *JobRun),
 		entries: mtx.NewRWMtx(Entries{
 			entriesHeap: make(EntryHeap, 0),
 			entriesMap:  make(map[EntryID]*Entry),
@@ -216,6 +220,12 @@ func (c *Cron) UpdateLabel(id EntryID, label string) { c.updateLabel(id, label) 
 func (c *Cron) Sub(id EntryID) *pubsub.Sub[EntryID, JobEvent] {
 	return c.ps.Subscribe([]EntryID{id})
 }
+
+// JobRunCreatedCh ...
+func (c *Cron) JobRunCreatedCh() <-chan *JobRun { return c.jobRunCreatedCh }
+
+// JobRunCompletedCh ...
+func (c *Cron) JobRunCompletedCh() <-chan *JobRun { return c.jobRunCompletedCh }
 
 // Enable ...
 func (c *Cron) Enable(id EntryID) { c.setEntryActive(id, true) }
@@ -616,8 +626,16 @@ func (c *Cron) entryExists(id EntryID) bool {
 func (c *Cron) updateJobsCounter(key EntryID, jobRun *JobRun, delta int32) {
 	jobRuns, _ := c.runningJobsMap.LoadOrStore(key, &mtx.RWMtxSlice[*JobRun]{})
 	if delta == 1 {
+		select {
+		case c.jobRunCreatedCh <- jobRun:
+		default:
+		}
 		jobRuns.Append(jobRun)
 	} else {
+		select {
+		case c.jobRunCompletedCh <- jobRun:
+		default:
+		}
 		jobRuns.With(func(jobRuns *[]*JobRun) {
 			if idx := slices.Index(*jobRuns, jobRun); idx != -1 {
 				*jobRuns = slices.Delete(*jobRuns, idx, idx+1)

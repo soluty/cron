@@ -471,16 +471,14 @@ func (c *Cron) getEntries() (out []Entry) {
 }
 
 func (c *Cron) getEntry(id EntryID) (out Entry, err error) {
-	c.entries.RWith(func(entries Entries) {
+	err = c.entries.RWithE(func(entries Entries) error {
 		if entry, ok := entries.entriesMap[id]; ok {
 			out = *entry
+			return nil
 		}
+		return ErrEntryNotFound
 	})
-	var zeroID EntryID
-	if out.ID == zeroID {
-		return Entry{}, ErrEntryNotFound
-	}
-	return out, nil
+	return out, err
 }
 
 func (c *Cron) entryIsRunning(id EntryID) bool {

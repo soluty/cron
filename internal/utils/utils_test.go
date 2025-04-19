@@ -1,9 +1,12 @@
 package utils
 
 import (
+	"github.com/alaingilbert/cron/internal/core"
 	"github.com/stretchr/testify/assert"
+	mathRand "math/rand/v2"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestPtr(t *testing.T) {
@@ -124,4 +127,10 @@ func TestEnsureRange(t *testing.T) {
 	min2, max2 := EnsureRange(3, 1)
 	assert.Equal(t, int64(1), min2)
 	assert.Equal(t, int64(3), max2)
+}
+
+func TestRandom(t *testing.T) {
+	core.RandSrc.Set(mathRand.New(mathRand.NewPCG(0, 0)))
+	assert.Equal(t, int64(22), Random(0, 100))
+	assert.Equal(t, time.Duration(40867799255), RandDuration(time.Second, time.Minute))
 }

@@ -3,6 +3,44 @@ package mtx
 
 import "sync"
 
+type Mtx[T any] struct {
+	sync.Mutex
+	v T
+}
+
+func NewMtx[T any](v T) Mtx[T] {
+	return Mtx[T]{v: v}
+}
+
+func (m *Mtx[T]) Val() *T {
+	return &m.v
+}
+
+func (m *Mtx[T]) Get() T {
+	m.Lock()
+	defer m.Unlock()
+	return m.v
+}
+
+func (m *Mtx[T]) Set(v T) {
+	m.Lock()
+	defer m.Unlock()
+	m.v = v
+}
+
+func (m *Mtx[T]) With(clb func(v *T)) {
+	_ = m.WithE(func(tx *T) error {
+		clb(tx)
+		return nil
+	})
+}
+
+func (m *Mtx[T]) WithE(clb func(v *T) error) error {
+	m.Lock()
+	defer m.Unlock()
+	return clb(&m.v)
+}
+
 // RWMtx is a generic thread-safe wrapper for a value of type T using a RWMutex.
 type RWMtx[T any] struct {
 	sync.RWMutex

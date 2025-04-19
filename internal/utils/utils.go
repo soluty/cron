@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"github.com/alaingilbert/cron/internal/core"
 	"iter"
 	"math/rand/v2"
 	"reflect"
@@ -97,13 +98,20 @@ func EnsureRange(min, max int64) (int64, int64) {
 	return min, max
 }
 
-// Random generates a number between min and max inclusively
-func Random(min, max int64) int64 {
+func RandomFrom(r *rand.Rand, min, max int64) int64 {
 	if min == max {
 		return min
 	}
 	min, max = EnsureRange(min, max)
-	return rand.Int64N(max-min+1) + min
+	return r.Int64N(max-min+1) + min
+}
+
+// Random generates a number between min and max inclusively
+func Random(min, max int64) (out int64) {
+	core.RandSrc.With(func(v **rand.Rand) {
+		out = RandomFrom(*v, min, max)
+	})
+	return
 }
 
 // RandDuration generates random duration

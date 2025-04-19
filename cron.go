@@ -84,6 +84,9 @@ type Entries struct {
 // ErrEntryNotFound ...
 var ErrEntryNotFound = errors.New("entry not found")
 
+// ErrRunNotFound ...
+var ErrRunNotFound = errors.New("run not found")
+
 // ErrUnsupportedJobType ...
 var ErrUnsupportedJobType = errors.New("unsupported job type")
 
@@ -236,6 +239,11 @@ func (c *Cron) IsRunning(id EntryID) bool { return c.entryIsRunning(id) }
 
 // RunningJobs ...
 func (c *Cron) RunningJobs() []JobRunPublic { return c.runningJobs() }
+
+// GetRun ...
+func (c *Cron) GetRun(entryID EntryID, runID RunID) (JobRunPublic, error) {
+	return c.getRun(entryID, runID)
+}
 
 // CancelRun ...
 func (c *Cron) CancelRun(entryID EntryID, runID RunID) { c.cancelRun(entryID, runID) }
@@ -553,6 +561,25 @@ func (c *Cron) getEntry(id EntryID) (out Entry, err error) {
 func (c *Cron) entryIsRunning(id EntryID) bool {
 	jobRuns, ok := c.runningJobsMap.Load(id)
 	return ok && jobRuns.Len() > 0
+}
+
+func (c *Cron) getRun(entryID EntryID, runID RunID) (JobRunPublic, error) {
+	if jobRunsSlice, ok := c.runningJobsMap.Load(entryID); ok {
+		var jobRunPub JobRunPublic
+		if err := jobRunsSlice.RWithE(func(jobRuns []*JobRun) error {
+			for _, jobRun := range jobRuns {
+				if jobRun.RunID == runID {
+					jobRunPub = jobRun.Export()
+					return nil
+				}
+			}
+			return ErrRunNotFound
+		}); err != nil {
+			return JobRunPublic{}, err
+		}
+		return jobRunPub, nil
+	}
+	return JobRunPublic{}, ErrRunNotFound
 }
 
 func (c *Cron) cancelRun(entryID EntryID, runID RunID) {

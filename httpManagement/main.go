@@ -38,8 +38,9 @@ var css = `
 		color: #eee;
 	}
 	.d-inline-block { display: inline-block; }
-	.active { color: #0f0; }
-	.inactive { color: #f00; }
+	.success { color: #0f0; }
+	.danger { color: #f00; }
+	.mb-1 { margin-bottom: 10px; }
 </style>
 `
 
@@ -117,7 +118,7 @@ Entries (` + strconv.Itoa(len(entries)) + `)<br />
 	<td>` + entry.Label + `</td>
 	<td>` + entry.Prev.Format(time.DateTime) + `</td>
 	<td>` + entry.Next.Format(time.DateTime) + `</td>
-	<td>` + utils.Ternary(entry.Active, `<span class="active">T</span>`, `<span class="inactive">F</span>`) + `</td>
+	<td>` + utils.Ternary(entry.Active, `<span class="success">T</span>`, `<span class="danger">F</span>`) + `</td>
 	<td>
 		<form method="POST" class="d-inline-block">
 			<input type="hidden" name="formName" value="runNow" />
@@ -202,7 +203,7 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 		b.WriteString(css + `
 ` + getMenu() + `
 <h1>` + string(entry.ID) + `</h1>
-Active: ` + utils.Ternary(entry.Active, `<span class="active">T</span>`, `<span class="inactive">F</span>`) + `<br />
+Active: ` + utils.Ternary(entry.Active, `<span class="success">T</span>`, `<span class="danger">F</span>`) + `<br />
 <hr />
 <div>
 	<label for="label">Job label:</label>
@@ -252,7 +253,8 @@ Completed jobs<br />
 		<th>Run ID</th>
 		<th>Label</th>
 		<th>Started at</th>
-		<th>Actions</th>
+		<th>Error</th>
+		<th>Panic</th>
 	</thead>
 	<tbody>
 `)
@@ -263,13 +265,21 @@ Completed jobs<br />
 		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `/runs/` + string(jobRun.RunID) + `">` + string(jobRun.RunID) + `</a></span></td>
 		<td>` + jobRun.Entry.Label + `</td>
 		<td>` + jobRun.StartedAt.Format(time.DateTime) + `</td>
-		<td>
-			<form method="POST" class="d-inline-block">
-				<input type="hidden" name="formName" value="cancelRun" />
-				<input type="hidden" name="entryID" value="` + string(jobRun.Entry.ID) + `" />
-				<input type="hidden" name="runID" value="` + string(jobRun.RunID) + `" />
-				<input type="submit" value="Cancel" />
-			</form>
+		<td>`)
+			if jobRun.Error != nil {
+				b.WriteString(`<span class="danger" title="` + jobRun.Error.Error() + `">Error</span>`)
+			} else {
+				b.WriteString(`<span class="success">-</span>`)
+			}
+			b.WriteString(`
+		</td>
+		<td>`)
+			if jobRun.Panic {
+				b.WriteString(`<span class="danger">Panic</span>`)
+			} else {
+				b.WriteString(`<span class="success">-</span>`)
+			}
+			b.WriteString(`
 		</td>
 	</tr>`)
 		}
@@ -325,9 +335,11 @@ func getRunHandler(c *cron.Cron) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		b.WriteString(css + `
 ` + getMenu() + `
-<h1>Entry: ` + string(entry.ID) + `</h1>
-<h2>Run: ` + string(jobRun.RunID) + `</h2>
-<form method="POST" class="d-inline-block">
+<h1>Run: ` + string(jobRun.RunID) + `</h1>
+<div class="mb-1">
+	Entry: <span class="monospace"><a href="/entries/` + string(entry.ID) + `">` + string(entry.ID) + `</a></span><br />
+</div>
+<form method="POST">
 	<input type="hidden" name="formName" value="cancelRun" />
 	<input type="hidden" name="entryID" value="` + string(jobRun.Entry.ID) + `" />
 	<input type="hidden" name="runID" value="` + string(jobRun.RunID) + `" />

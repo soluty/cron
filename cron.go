@@ -554,9 +554,9 @@ func (c *Cron) cancelRun(entryID EntryID, runID string) {
 func (c *Cron) runningJobs() (out []JobRunPublic) {
 	for v := range c.runningJobsMap.IterValues() {
 		if v.Len() > 0 {
-			var jobRunPub JobRunPublic
-			v.Each(func(run *JobRun) { jobRunPub = run.Export() })
-			out = append(out, jobRunPub)
+			v.Each(func(run *JobRun) {
+				out = append(out, run.Export())
+			})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {

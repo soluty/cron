@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/alaingilbert/cron"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -19,14 +20,26 @@ func getIndexHandler(c *cron.Cron) http.HandlerFunc {
 		var b bytes.Buffer
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
-		b.WriteString(`<style>html{background-color:#222;color:#eee;}</style>`)
+		b.WriteString(`
+<style>
+	html {
+		background-color: #222;
+		color: #eee;
+		font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+	}
+	table td {
+		padding: 0 5px;
+	}
+</style>`)
 		jobRuns := c.RunningJobs()
 		b.WriteString(`
-Running jobs<br />
+Current time: ` + time.Now().Format(time.DateTime) + `<br />
+Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
 <table>
 	<thead>
 		<th>Entry ID</th>
 		<th>Run ID</th>
+		<th>Label</th>
 		<th>Started at</th>
 		<th>Actions</th>
 	</thead>
@@ -62,6 +75,6 @@ func postIndexHandler(c *cron.Cron) http.HandlerFunc {
 		runID := r.PostFormValue("runID")
 		c.CancelRun(entryID, runID)
 		w.Header().Set("Location", "/")
-		w.WriteHeader(http.StatusFound)
+		w.WriteHeader(http.StatusSeeOther)
 	}
 }

@@ -716,9 +716,10 @@ func (c *Cron) startJob(entry Entry) {
 
 func (c *Cron) runWithRecovery(jobRun *JobRun) {
 	entry := jobRun.Entry
+	logger := c.logger
 	defer func() {
 		if r := recover(); r != nil {
-			c.logger.Printf("%v\n%s\n", r, string(debug.Stack()))
+			logger.Printf("%v\n%s\n", r, string(debug.Stack()))
 			makePanicEvent(c, entry, jobRun)
 		}
 		makeCompletedEvent(c, entry, jobRun)
@@ -728,7 +729,7 @@ func (c *Cron) runWithRecovery(jobRun *JobRun) {
 		msg := fmt.Sprintf("error running job %s", entry.ID)
 		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
 		msg += " : " + err.Error()
-		c.logger.Println(msg)
+		logger.Println(msg)
 		makeCompletedErrEvent(c, entry, jobRun, err)
 	} else {
 		makeCompletedNoErrEvent(c, entry, jobRun)

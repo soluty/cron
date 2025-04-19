@@ -539,8 +539,8 @@ func (c *Cron) entryIsRunning(id EntryID) bool {
 }
 
 func (c *Cron) cancelRun(runID string) {
-	for v := range c.runningJobsMap.IterValues() {
-		v.With(func(jobRuns *[]*JobRun) {
+	for jobRunsSlice := range c.runningJobsMap.IterValues() {
+		jobRunsSlice.With(func(jobRuns *[]*JobRun) {
 			for _, jobRun := range *jobRuns {
 				if jobRun.RunID == runID {
 					(*jobRun).cancel()

@@ -3,31 +3,39 @@ package mtx
 
 import "sync"
 
+// Mtx wraps a value of any type T with a sync.Mutex for safe concurrent access.
 type Mtx[T any] struct {
 	sync.Mutex
 	v T
 }
 
+// NewMtx creates a new Mtx[T] with the initial value v.
 func NewMtx[T any](v T) Mtx[T] {
 	return Mtx[T]{v: v}
 }
 
+// Val returns a raw pointer to the internal value without locking.
+// This is unsafe for concurrent access and should be used cautiously.
 func (m *Mtx[T]) Val() *T {
 	return &m.v
 }
 
+// Get returns a copy of the value, safely locking and unlocking the mutex.
 func (m *Mtx[T]) Get() T {
 	m.Lock()
 	defer m.Unlock()
 	return m.v
 }
 
+// Set sets the internal value to v, safely locking and unlocking the mutex.
 func (m *Mtx[T]) Set(v T) {
 	m.Lock()
 	defer m.Unlock()
 	m.v = v
 }
 
+// With locks the mutex and applies the given function to the value.
+// It ignores errors.
 func (m *Mtx[T]) With(clb func(v *T)) {
 	_ = m.WithE(func(tx *T) error {
 		clb(tx)
@@ -35,6 +43,8 @@ func (m *Mtx[T]) With(clb func(v *T)) {
 	})
 }
 
+// WithE locks the mutex and applies the given function to the value,
+// allowing the function to return an error that will be propagated.
 func (m *Mtx[T]) WithE(clb func(v *T) error) error {
 	m.Lock()
 	defer m.Unlock()

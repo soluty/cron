@@ -1,11 +1,56 @@
 package mtx
 
 import (
+	"errors"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
 )
+
+func TestNewMtx(t *testing.T) {
+	m := NewMtx(42)
+	assert.Equal(t, 42, m.Get())
+}
+
+func TestValUnsafeAccess(t *testing.T) {
+	m := NewMtx("hello")
+	*m.Val() = "world" // direct, unsafe access
+	assert.Equal(t, "world", m.Get())
+}
+
+func TestSetAndGet(t *testing.T) {
+	m := NewMtx(10)
+	m.Set(20)
+	assert.Equal(t, 20, m.Get())
+}
+
+func TestWith(t *testing.T) {
+	m := NewMtx(5)
+	m.With(func(v *int) {
+		*v += 10
+	})
+	assert.Equal(t, 15, m.Get())
+}
+
+func TestWithE_Success(t *testing.T) {
+	m := NewMtx("a")
+	err := m.WithE(func(v *string) error {
+		*v += "b"
+		return nil
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "ab", m.Get())
+}
+
+func TestWithE_Error(t *testing.T) {
+	m := NewMtx(100)
+	err := m.WithE(func(v *int) error {
+		return errors.New("some error")
+	})
+	assert.Error(t, err)
+	assert.Equal(t, 100, m.Get()) // value should remain unchanged
+}
 
 func TestRWMtx(t *testing.T) {
 	mtx := NewRWMtx(42)

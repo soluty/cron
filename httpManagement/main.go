@@ -253,6 +253,7 @@ Completed jobs<br />
 		<th>Run ID</th>
 		<th>Label</th>
 		<th>Started at</th>
+		<th>Completed at</th>
 		<th>Error</th>
 		<th>Panic</th>
 	</thead>
@@ -265,6 +266,7 @@ Completed jobs<br />
 		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `/runs/` + string(jobRun.RunID) + `">` + string(jobRun.RunID) + `</a></span></td>
 		<td>` + jobRun.Entry.Label + `</td>
 		<td>` + jobRun.StartedAt.Format(time.DateTime) + `</td>
+		<td>` + jobRun.CompletedAt.Format(time.DateTime) + `</td>
 		<td>`)
 			if jobRun.Error != nil {
 				b.WriteString(`<span class="danger" title="` + jobRun.Error.Error() + `">Error</span>`)

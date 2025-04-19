@@ -154,12 +154,6 @@ func (c *Cron) AddEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
 	return c.addEntry(entry, opts...)
 }
 
-// Enable ...
-func (c *Cron) Enable(id EntryID) { c.setEntryActive(id, true) }
-
-// Disable ...
-func (c *Cron) Disable(id EntryID) { c.setEntryActive(id, false) }
-
 // UpdateSchedule ...
 func (c *Cron) UpdateSchedule(id EntryID, schedule Schedule) error {
 	return c.updateSchedule(id, schedule)
@@ -169,6 +163,12 @@ func (c *Cron) UpdateSchedule(id EntryID, schedule Schedule) error {
 func (c *Cron) UpdateScheduleWithSpec(id EntryID, spec string) error {
 	return c.updateScheduleWithSpec(id, spec)
 }
+
+// Enable ...
+func (c *Cron) Enable(id EntryID) { c.setEntryActive(id, true) }
+
+// Disable ...
+func (c *Cron) Disable(id EntryID) { c.setEntryActive(id, false) }
 
 // Entries returns a snapshot of the cron entries.
 func (c *Cron) Entries() (out []Entry) { return c.getEntries() }

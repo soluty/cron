@@ -117,6 +117,11 @@ Entries (` + strconv.Itoa(len(entries)) + `)<br />
 	<td>` + entry.Next.Format(time.DateTime) + `</td>
 	<td>` + utils.Ternary(entry.Active, `<span class="active">T</span>`, `<span class="inactive">F</span>`) + `</td>
 	<td>
+		<form method="POST" class="d-inline-block">
+			<input type="hidden" name="formName" value="runNow" />
+			<input type="hidden" name="entryID" value="` + string(entry.ID) + `" />
+			<input type="submit" value="Run now" />
+		</form>
 `)
 			if entry.Active {
 				b.WriteString(`
@@ -169,6 +174,9 @@ func postIndexHandler(c *cron.Cron) http.HandlerFunc {
 		} else if formName == "disableEntry" {
 			entryID := cron.EntryID(r.PostFormValue("entryID"))
 			c.Disable(entryID)
+		} else if formName == "runNow" {
+			entryID := cron.EntryID(r.PostFormValue("entryID"))
+			c.RunNow(entryID)
 		}
 		w.Header().Set("Location", "/")
 		w.WriteHeader(http.StatusSeeOther)

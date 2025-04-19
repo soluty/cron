@@ -18,7 +18,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/alaingilbert/cron"
+	"github.com/alaingilbert/cron/httpManagement"
 	"log"
+	"net/http"
 	"os"
 	"time"
 )
@@ -169,7 +171,12 @@ func main() {
 		fmt.Println(entry.Prev.UnixNano(), time.Now().UnixNano())
 	})
 
-	c.Run()
+	c.Start()
+
+	mux := httpManagement.GetMux(c)
+	if err := http.ListenAndServe(":8080", mux); err != nil {
+		log.Fatal(err)
+	}
 }
 
 ```

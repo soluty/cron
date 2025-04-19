@@ -490,6 +490,11 @@ func (c *Cron) remove(id EntryID) {
 }
 
 func (c *Cron) removeEntry(id EntryID) {
+	if jobRuns, ok := c.runningJobsMap.Load(id); ok {
+		jobRuns.Each(func(jobRun *JobRun) {
+			jobRun.cancel()
+		})
+	}
 	c.runningJobsMap.Delete(id)
 	c.entries.With(func(entries *Entries) {
 		delete(entries.entriesMap, id)

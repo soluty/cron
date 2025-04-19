@@ -231,7 +231,11 @@ func (c *Cron) RunNow(id EntryID) { c.runNow(id) }
 // IsRunning either or not a specific job is currently running
 func (c *Cron) IsRunning(id EntryID) bool { return c.entryIsRunning(id) }
 
+// RunningJobs ...
 func (c *Cron) RunningJobs() []JobRunPublic { return c.runningJobs() }
+
+// CancelRun ...
+func (c *Cron) CancelRun(runID string) { c.cancelRun(runID) }
 
 // Location gets the time zone location
 func (c *Cron) Location() *time.Location { return c.getLocation() }
@@ -534,6 +538,18 @@ func (c *Cron) entryIsRunning(id EntryID) bool {
 	return ok && jobRuns.Len() > 0
 }
 
+func (c *Cron) cancelRun(runID string) {
+	for v := range c.runningJobsMap.IterValues() {
+		v.With(func(jobRuns *[]*JobRun) {
+			for _, jobRun := range *jobRuns {
+				if jobRun.RunID == runID {
+					(*jobRun).cancel()
+				}
+			}
+		})
+	}
+}
+
 func (c *Cron) runningJobs() (out []JobRunPublic) {
 	for v := range c.runningJobsMap.IterValues() {
 		var jobRunPub JobRunPublic
@@ -569,6 +585,8 @@ type JobRun struct {
 	clock     clockwork.Clock
 	inner     mtx.RWMtx[jobRunInner]
 	CreatedAt time.Time
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
 type jobRunInner struct {
@@ -604,18 +622,21 @@ type JobRunPublic struct {
 	Panic       bool
 }
 
-func NewJobRun(clock clockwork.Clock, entry Entry) *JobRun {
+func NewJobRun(ctx context.Context, clock clockwork.Clock, entry Entry) *JobRun {
+	ctx, cancel := context.WithCancel(ctx)
 	return &JobRun{
 		RunID:     uuidV4(),
 		Entry:     entry,
 		clock:     clock,
 		CreatedAt: clock.Now(),
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 }
 
 // startJob runs the given job in a new goroutine.
 func (c *Cron) startJob(entry Entry) {
-	jobRun := NewJobRun(c.clock, entry)
+	jobRun := NewJobRun(c.ctx, c.clock, entry)
 	c.runningJobsCount.Add(1)
 	go func() {
 		defer func() {
@@ -642,7 +663,7 @@ func (c *Cron) runWithRecovery(jobRun *JobRun) {
 	}()
 	jobRun.inner.With(func(inner *jobRunInner) { (*inner).StartedAt = utils.Ptr(clock.Now()) })
 	c.ps.Pub(entry.ID, JobEvent{Typ: BeforeStart, JobRun: jobRun.Export()})
-	if err := entry.job.Run(c.ctx, c, entry); err != nil {
+	if err := entry.job.Run(jobRun.ctx, c, entry); err != nil {
 		msg := fmt.Sprintf("error running job %s", entry.ID)
 		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
 		msg += " : " + err.Error()

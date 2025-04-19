@@ -1108,3 +1108,18 @@ func TestEvents(t *testing.T) {
 	}
 	cond.L.Unlock()
 }
+
+func TestRunningJobs(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
+	cron := New(WithClock(clock), WithParser(secondParser))
+	c1 := make(chan struct{})
+	c2 := make(chan struct{})
+	_, _ = cron.AddJob("* * * * * *", func() { clock.SleepNotify(time.Minute, c1) })
+	_, _ = cron.AddJob("* * * * * *", func() { clock.SleepNotify(time.Minute, c2) })
+	cron.Start()
+	advanceAndCycleNoWait(cron, time.Second)
+	<-c1
+	<-c2
+	jobs := cron.runningJobs()
+	assert.Equal(t, 2, len(jobs))
+}

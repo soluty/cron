@@ -12,6 +12,8 @@ import (
 	"log"
 	"os"
 	"runtime/debug"
+	"slices"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,20 +28,20 @@ import (
 // specified by the schedule. It may be started, stopped, and the entries may
 // be inspected while running.
 type Cron struct {
-	clock            clockwork.Clock                   // Clock interface (real or mock) used for timing
-	runningJobsCount atomic.Int32                      // Count of currently running jobs
-	runningJobsMap   isync.Map[EntryID, *atomic.Int32] // Keep track of currently running jobs
-	cond             sync.Cond                         // Signals when all jobs have completed
-	entries          mtx.RWMtx[Entries]                // Thread-safe, sorted list of job entries
-	ctx              context.Context                   // Context to control the scheduler lifecycle
-	cancel           context.CancelFunc                // Cancels the scheduler context
-	update           chan context.CancelFunc           // Triggers update in the scheduler loop
-	running          atomic.Bool                       // Indicates if the scheduler is currently running
-	location         mtx.RWMtx[*time.Location]         // Thread-safe time zone location
-	logger           *log.Logger                       // Logger for scheduler events, errors, and diagnostics
-	parser           ScheduleParser                    // Parses cron expressions into schedule objects
-	idFactory        EntryIDFactory                    // Generates a new unique EntryID for each scheduled job
-	ps               *pubsub.PubSub[EntryID, JobEvent] //
+	clock            clockwork.Clock                              // Clock interface (real or mock) used for timing
+	runningJobsCount atomic.Int32                                 // Count of currently running jobs
+	runningJobsMap   isync.Map[EntryID, *mtx.RWMtxSlice[*JobRun]] // Keep track of currently running jobs
+	cond             sync.Cond                                    // Signals when all jobs have completed
+	entries          mtx.RWMtx[Entries]                           // Thread-safe, sorted list of job entries
+	ctx              context.Context                              // Context to control the scheduler lifecycle
+	cancel           context.CancelFunc                           // Cancels the scheduler context
+	update           chan context.CancelFunc                      // Triggers update in the scheduler loop
+	running          atomic.Bool                                  // Indicates if the scheduler is currently running
+	location         mtx.RWMtx[*time.Location]                    // Thread-safe time zone location
+	logger           *log.Logger                                  // Logger for scheduler events, errors, and diagnostics
+	parser           ScheduleParser                               // Parses cron expressions into schedule objects
+	idFactory        EntryIDFactory                               // Generates a new unique EntryID for each scheduled job
+	ps               *pubsub.PubSub[EntryID, JobEvent]            //
 }
 
 type JobEventType int
@@ -70,7 +72,8 @@ func (e JobEventType) String() string {
 }
 
 type JobEvent struct {
-	Typ JobEventType
+	Typ    JobEventType
+	JobRun JobRunPublic
 }
 
 type Entries struct {
@@ -148,7 +151,7 @@ func New(opts ...Option) *Cron {
 		clock:          clock,
 		ctx:            ctx,
 		cancel:         cancel,
-		runningJobsMap: isync.Map[EntryID, *atomic.Int32]{},
+		runningJobsMap: isync.Map[EntryID, *mtx.RWMtxSlice[*JobRun]]{},
 		update:         make(chan context.CancelFunc),
 		location:       mtx.NewRWMtx(location),
 		logger:         logger,
@@ -227,6 +230,8 @@ func (c *Cron) RunNow(id EntryID) { c.runNow(id) }
 
 // IsRunning either or not a specific job is currently running
 func (c *Cron) IsRunning(id EntryID) bool { return c.entryIsRunning(id) }
+
+func (c *Cron) RunningJobs() []JobRunPublic { return c.runningJobs() }
 
 // Location gets the time zone location
 func (c *Cron) Location() *time.Location { return c.getLocation() }
@@ -525,50 +530,127 @@ func (c *Cron) getEntry(id EntryID) (out Entry, err error) {
 }
 
 func (c *Cron) entryIsRunning(id EntryID) bool {
-	val, ok := c.runningJobsMap.Load(id)
-	return ok && val.Load() > 0
+	jobRuns, ok := c.runningJobsMap.Load(id)
+	return ok && jobRuns.Len() > 0
+}
+
+func (c *Cron) runningJobs() (out []JobRunPublic) {
+	for v := range c.runningJobsMap.IterValues() {
+		var jobRunPub JobRunPublic
+		v.Each(func(run *JobRun) { jobRunPub = run.Export() })
+		out = append(out, jobRunPub)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	})
+	return
 }
 
 func (c *Cron) entryExists(id EntryID) bool {
 	return utils.Second(c.getEntry(id)) == nil
 }
 
-func (c *Cron) updateJobsCounter(key EntryID, delta int32) {
-	val, _ := c.runningJobsMap.LoadOrStore(key, &atomic.Int32{})
-	val.Add(delta)
+func (c *Cron) updateJobsCounter(key EntryID, jobRun *JobRun, delta int32) {
+	jobRuns, _ := c.runningJobsMap.LoadOrStore(key, &mtx.RWMtxSlice[*JobRun]{})
+	if delta == 1 {
+		jobRuns.Append(jobRun)
+	} else {
+		jobRuns.With(func(jobRuns *[]*JobRun) {
+			if idx := slices.Index(*jobRuns, jobRun); idx != -1 {
+				*jobRuns = slices.Delete(*jobRuns, idx, idx+1)
+			}
+		})
+	}
+}
+
+type JobRun struct {
+	RunID     string
+	Entry     Entry
+	clock     clockwork.Clock
+	inner     mtx.RWMtx[jobRunInner]
+	CreatedAt time.Time
+}
+
+type jobRunInner struct {
+	StartedAt   *time.Time
+	CompletedAt *time.Time
+	Error       error
+	Cancelled   bool
+	Panic       bool
+}
+
+func (j *JobRun) Export() JobRunPublic {
+	innerCopy := j.inner.Get()
+	return JobRunPublic{
+		RunID:       j.RunID,
+		Entry:       j.Entry,
+		CreatedAt:   j.CreatedAt,
+		StartedAt:   innerCopy.StartedAt,
+		CompletedAt: innerCopy.CompletedAt,
+		Error:       innerCopy.Error,
+		Cancelled:   innerCopy.Cancelled,
+		Panic:       innerCopy.Panic,
+	}
+}
+
+type JobRunPublic struct {
+	RunID       string
+	Entry       Entry
+	CreatedAt   time.Time
+	StartedAt   *time.Time
+	CompletedAt *time.Time
+	Error       error
+	Cancelled   bool
+	Panic       bool
+}
+
+func NewJobRun(clock clockwork.Clock, entry Entry) *JobRun {
+	return &JobRun{
+		RunID:     uuidV4(),
+		Entry:     entry,
+		clock:     clock,
+		CreatedAt: clock.Now(),
+	}
 }
 
 // startJob runs the given job in a new goroutine.
 func (c *Cron) startJob(entry Entry) {
+	jobRun := NewJobRun(c.clock, entry)
 	c.runningJobsCount.Add(1)
 	go func() {
 		defer func() {
-			c.updateJobsCounter(entry.ID, -1)
+			c.updateJobsCounter(entry.ID, jobRun, -1)
 			c.runningJobsCount.Add(-1)
 			c.signalJobCompleted()
 		}()
-		c.updateJobsCounter(entry.ID, 1)
-		c.runWithRecovery(entry)
+		c.updateJobsCounter(entry.ID, jobRun, 1)
+		c.runWithRecovery(jobRun)
 	}()
 }
 
-func (c *Cron) runWithRecovery(entry Entry) {
+func (c *Cron) runWithRecovery(jobRun *JobRun) {
+	clock := jobRun.clock
+	entry := jobRun.Entry
 	defer func() {
 		if r := recover(); r != nil {
 			c.logger.Printf("%v\n%s\n", r, string(debug.Stack()))
-			c.ps.Pub(entry.ID, JobEvent{Typ: CompletedPanic})
+			jobRun.inner.With(func(inner *jobRunInner) { (*inner).Panic = true })
+			c.ps.Pub(entry.ID, JobEvent{Typ: CompletedPanic, JobRun: jobRun.Export()})
 		}
-		c.ps.Pub(entry.ID, JobEvent{Typ: Completed})
+		jobRun.inner.With(func(inner *jobRunInner) { (*inner).CompletedAt = utils.Ptr(clock.Now()) })
+		c.ps.Pub(entry.ID, JobEvent{Typ: Completed, JobRun: jobRun.Export()})
 	}()
-	c.ps.Pub(entry.ID, JobEvent{Typ: BeforeStart})
+	jobRun.inner.With(func(inner *jobRunInner) { (*inner).StartedAt = utils.Ptr(clock.Now()) })
+	c.ps.Pub(entry.ID, JobEvent{Typ: BeforeStart, JobRun: jobRun.Export()})
 	if err := entry.job.Run(c.ctx, c, entry); err != nil {
 		msg := fmt.Sprintf("error running job %s", entry.ID)
 		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
 		msg += " : " + err.Error()
 		c.logger.Println(msg)
-		c.ps.Pub(entry.ID, JobEvent{Typ: CompletedErr})
+		jobRun.inner.With(func(inner *jobRunInner) { (*inner).Error = err })
+		c.ps.Pub(entry.ID, JobEvent{Typ: CompletedErr, JobRun: jobRun.Export()})
 	} else {
-		c.ps.Pub(entry.ID, JobEvent{Typ: CompletedNoErr})
+		c.ps.Pub(entry.ID, JobEvent{Typ: CompletedNoErr, JobRun: jobRun.Export()})
 	}
 }
 

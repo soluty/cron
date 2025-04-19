@@ -49,13 +49,13 @@ Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
 			b.WriteString(`
 	<tr>
 		<td>` + string(jobRun.Entry.ID) + `</td>
-		<td>` + jobRun.RunID + `</td>
+		<td>` + string(jobRun.RunID) + `</td>
 		<td>` + jobRun.Entry.Label + `</td>
 		<td>` + jobRun.StartedAt.Format(time.DateTime) + `</td>
 		<td>
 			<form method="POST" style="display: inline-block;">
 				<input type="hidden" name="entryID" value="` + string(jobRun.Entry.ID) + `" />
-				<input type="hidden" name="runID" value="` + jobRun.RunID + `" />
+				<input type="hidden" name="runID" value="` + string(jobRun.RunID) + `" />
 				<input type="submit" value="Cancel" />
 			</form>
 		</td>
@@ -72,7 +72,7 @@ Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
 func postIndexHandler(c *cron.Cron) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		entryID := cron.EntryID(r.PostFormValue("entryID"))
-		runID := r.PostFormValue("runID")
+		runID := cron.RunID(r.PostFormValue("runID"))
 		c.CancelRun(entryID, runID)
 		w.Header().Set("Location", "/")
 		w.WriteHeader(http.StatusSeeOther)

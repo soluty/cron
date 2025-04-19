@@ -235,7 +235,7 @@ func (c *Cron) IsRunning(id EntryID) bool { return c.entryIsRunning(id) }
 func (c *Cron) RunningJobs() []JobRunPublic { return c.runningJobs() }
 
 // CancelRun ...
-func (c *Cron) CancelRun(entryID EntryID, runID string) { c.cancelRun(entryID, runID) }
+func (c *Cron) CancelRun(entryID EntryID, runID RunID) { c.cancelRun(entryID, runID) }
 
 // Location gets the time zone location
 func (c *Cron) Location() *time.Location { return c.getLocation() }
@@ -544,7 +544,7 @@ func (c *Cron) entryIsRunning(id EntryID) bool {
 	return ok && jobRuns.Len() > 0
 }
 
-func (c *Cron) cancelRun(entryID EntryID, runID string) {
+func (c *Cron) cancelRun(entryID EntryID, runID RunID) {
 	if jobRunsSlice, ok := c.runningJobsMap.Load(entryID); ok {
 		jobRunsSlice.With(func(jobRuns *[]*JobRun) {
 			for _, jobRun := range *jobRuns {
@@ -587,8 +587,11 @@ func (c *Cron) updateJobsCounter(key EntryID, jobRun *JobRun, delta int32) {
 	}
 }
 
+// RunID ...
+type RunID string
+
 type JobRun struct {
-	RunID     string
+	RunID     RunID
 	Entry     Entry
 	clock     clockwork.Clock
 	inner     mtx.RWMtx[jobRunInner]
@@ -620,7 +623,7 @@ func (j *JobRun) Export() JobRunPublic {
 }
 
 type JobRunPublic struct {
-	RunID       string
+	RunID       RunID
 	Entry       Entry
 	CreatedAt   time.Time
 	StartedAt   *time.Time
@@ -633,7 +636,7 @@ type JobRunPublic struct {
 func NewJobRun(ctx context.Context, clock clockwork.Clock, entry Entry) *JobRun {
 	ctx, cancel := context.WithCancel(ctx)
 	return &JobRun{
-		RunID:     uuidV4(),
+		RunID:     RunID(uuidV4()),
 		Entry:     entry,
 		clock:     clock,
 		CreatedAt: clock.Now(),

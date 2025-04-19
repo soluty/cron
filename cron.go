@@ -617,8 +617,8 @@ func (c *Cron) cancelRun(entryID EntryID, runID RunID) {
 }
 
 func (c *Cron) runningJobs() (out []JobRunPublic) {
-	for v := range c.runningJobsMap.IterValues() {
-		v.Each(func(run *JobRun) {
+	for jobRuns := range c.runningJobsMap.IterValues() {
+		jobRuns.Each(func(run *JobRun) {
 			out = append(out, run.Export())
 		})
 	}

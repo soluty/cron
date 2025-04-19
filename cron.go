@@ -514,7 +514,7 @@ func (c *Cron) startJob(entry Entry) {
 func (c *Cron) runWithRecovery(entry Entry) {
 	defer func() {
 		if r := recover(); r != nil {
-			c.logger.Printf("%s\n", string(debug.Stack()))
+			c.logger.Printf("%v\n%s\n", r, string(debug.Stack()))
 		}
 	}()
 	if err := entry.job.Run(c.ctx, c, entry); err != nil {

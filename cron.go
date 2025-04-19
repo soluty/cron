@@ -673,9 +673,7 @@ func (c *Cron) runningJobs() (out []JobRunPublic) {
 			}
 		})
 	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].CreatedAt.Before(out[j].CreatedAt)
-	})
+	sortJobRunsPublic(out)
 	return
 }
 
@@ -687,9 +685,7 @@ func (c *Cron) runningJobsFor(entryID EntryID) (out []JobRunPublic) {
 			}
 		})
 	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].CreatedAt.Before(out[j].CreatedAt)
-	})
+	sortJobRunsPublic(out)
 	return
 }
 
@@ -701,10 +697,14 @@ func (c *Cron) completedJobRunsFor(entryID EntryID) (out []JobRunPublic) {
 			}
 		})
 	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].CreatedAt.Before(out[j].CreatedAt)
-	})
+	sortJobRunsPublic(out)
 	return
+}
+
+func sortJobRunsPublic(runs []JobRunPublic) {
+	sort.Slice(runs, func(i, j int) bool {
+		return runs[i].CreatedAt.Before(runs[j].CreatedAt)
+	})
 }
 
 func (c *Cron) entryExists(id EntryID) bool {

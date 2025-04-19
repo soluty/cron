@@ -79,6 +79,14 @@ type JobEvent struct {
 	CreatedAt time.Time
 }
 
+func NewJobEvent(typ JobEventType, jobRun *JobRun) JobEvent {
+	return JobEvent{
+		Typ:       typ,
+		JobRun:    jobRun.Export(),
+		CreatedAt: jobRun.clock.Now(),
+	}
+}
+
 type Entries struct {
 	entriesHeap EntryHeap
 	entriesMap  map[EntryID]*Entry
@@ -737,8 +745,7 @@ func (c *Cron) runWithRecovery(jobRun *JobRun) {
 }
 
 func makePanicEvent(c *Cron, entry Entry, jobRun *JobRun) {
-	now := jobRun.clock.Now()
-	evt := JobEvent{Typ: CompletedPanic, JobRun: jobRun.Export(), CreatedAt: now}
+	evt := NewJobEvent(CompletedPanic, jobRun)
 	jobRun.inner.With(func(inner *jobRunInner) {
 		(*inner).Panic = true
 		(*inner).events = append((*inner).events, evt)
@@ -748,7 +755,7 @@ func makePanicEvent(c *Cron, entry Entry, jobRun *JobRun) {
 
 func makeCompletedEvent(c *Cron, entry Entry, jobRun *JobRun) {
 	now := jobRun.clock.Now()
-	evt := JobEvent{Typ: Completed, JobRun: jobRun.Export(), CreatedAt: now}
+	evt := NewJobEvent(Completed, jobRun)
 	jobRun.inner.With(func(inner *jobRunInner) {
 		(*inner).CompletedAt = utils.Ptr(now)
 		(*inner).events = append((*inner).events, evt)
@@ -758,7 +765,7 @@ func makeCompletedEvent(c *Cron, entry Entry, jobRun *JobRun) {
 
 func makeStartEvent(c *Cron, entry Entry, jobRun *JobRun) {
 	now := jobRun.clock.Now()
-	evt := JobEvent{Typ: Start, JobRun: jobRun.Export(), CreatedAt: now}
+	evt := NewJobEvent(Start, jobRun)
 	jobRun.inner.With(func(inner *jobRunInner) {
 		(*inner).StartedAt = utils.Ptr(now)
 		(*inner).events = append((*inner).events, evt)
@@ -767,8 +774,7 @@ func makeStartEvent(c *Cron, entry Entry, jobRun *JobRun) {
 }
 
 func makeCompletedErrEvent(c *Cron, entry Entry, jobRun *JobRun, err error) {
-	now := jobRun.clock.Now()
-	evt := JobEvent{Typ: CompletedErr, JobRun: jobRun.Export(), CreatedAt: now}
+	evt := NewJobEvent(CompletedErr, jobRun)
 	jobRun.inner.With(func(inner *jobRunInner) {
 		(*inner).Error = err
 		(*inner).events = append((*inner).events, evt)
@@ -777,8 +783,7 @@ func makeCompletedErrEvent(c *Cron, entry Entry, jobRun *JobRun, err error) {
 }
 
 func makeCompletedNoErrEvent(c *Cron, entry Entry, jobRun *JobRun) {
-	now := jobRun.clock.Now()
-	evt := JobEvent{Typ: CompletedNoErr, JobRun: jobRun.Export(), CreatedAt: now}
+	evt := NewJobEvent(CompletedNoErr, jobRun)
 	jobRun.inner.With(func(inner *jobRunInner) {
 		(*inner).events = append((*inner).events, evt)
 	})

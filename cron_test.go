@@ -1056,3 +1056,46 @@ func TestWithDeadline(t *testing.T) {
 	<-c2
 	assert.Equal(t, int32(1), calls.Load())
 }
+
+func TestEvents(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 59, 0, time.UTC))
+	cron := New(WithClock(clock), WithLogger(log.New(io.Discard, "", log.LstdFlags)))
+	c1 := make(chan struct{})
+	id, _ := cron.AddJob("* * * * *", SkipIfStillRunning(func() {
+		clock.SleepNotify(150*time.Second, c1) // sleep 2m30s
+	}))
+	cron.Start()
+	var nbWithErr, nbNoErr atomic.Int32
+	cond := sync.Cond{L: &sync.Mutex{}}
+	onErrCh := make(chan struct{})
+	go func() {
+		sub := cron.Sub(id)
+		for payload := range sub.ReceiveCh() {
+			if payload.Msg.Typ == CompletedErr {
+				nbWithErr.Add(1)
+				onErrCh <- struct{}{}
+			} else if payload.Msg.Typ == CompletedNoErr {
+				nbNoErr.Add(1)
+			}
+			cond.L.Lock()
+			cond.Signal()
+			cond.L.Unlock()
+		}
+	}()
+	go func() {
+		advanceAndCycleNoWait(cron, time.Second)    // after 1s, job starts
+		<-c1                                        // wait until the job is sleeping  before advancing clock
+		advanceAndCycleNoWait(cron, time.Minute)    // after 1m another job starts but is skipped
+		<-onErrCh                                   // Wait until we receive the failed event before advancing clock
+		advanceAndCycleNoWait(cron, time.Minute)    // after 2m another job starts but is skipped
+		<-onErrCh                                   // Wait until we receive the failed event before advancing clock
+		advanceAndCycleNoWait(cron, 30*time.Second) // after 2m30s job is completed
+	}()
+
+	// Wait until we receive all events (1 completed, 2 failed)
+	cond.L.Lock()
+	for !(nbWithErr.Load() == 2 && nbNoErr.Load() == 1) {
+		cond.Wait()
+	}
+	cond.L.Unlock()
+}

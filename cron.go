@@ -235,7 +235,7 @@ func (c *Cron) IsRunning(id EntryID) bool { return c.entryIsRunning(id) }
 func (c *Cron) RunningJobs() []JobRunPublic { return c.runningJobs() }
 
 // CancelRun ...
-func (c *Cron) CancelRun(runID string) { c.cancelRun(runID) }
+func (c *Cron) CancelRun(entryID EntryID, runID string) { c.cancelRun(entryID, runID) }
 
 // Location gets the time zone location
 func (c *Cron) Location() *time.Location { return c.getLocation() }
@@ -538,8 +538,8 @@ func (c *Cron) entryIsRunning(id EntryID) bool {
 	return ok && jobRuns.Len() > 0
 }
 
-func (c *Cron) cancelRun(runID string) {
-	for jobRunsSlice := range c.runningJobsMap.IterValues() {
+func (c *Cron) cancelRun(entryID EntryID, runID string) {
+	if jobRunsSlice, ok := c.runningJobsMap.Load(entryID); ok {
 		jobRunsSlice.With(func(jobRuns *[]*JobRun) {
 			for _, jobRun := range *jobRuns {
 				if jobRun.RunID == runID {

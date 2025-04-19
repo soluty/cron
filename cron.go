@@ -394,7 +394,7 @@ func (c *Cron) runDueEntries() {
 				}
 				entry = heap.Pop(&entries.entriesHeap).(*Entry)
 				entry.Prev = entry.Next
-				entry.Next = entry.Schedule.Next(now) // Compute new Next property for the Entry
+				entry.Next = entry.Schedule.Next(now)
 				heap.Push(&entries.entriesHeap, entry)
 				c.startJob(*entry)
 			}

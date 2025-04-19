@@ -169,3 +169,11 @@ func Some[T any](arr []T, predicate func(T) bool) bool {
 func SomeIter[T any](it iter.Seq[T], predicate func(T) bool) bool {
 	return FindIter(it, predicate) != nil
 }
+
+// NonBlockingSend ...
+func NonBlockingSend[T any](c chan T, el T) {
+	select {
+	case c <- el:
+	default:
+	}
+}

@@ -626,16 +626,10 @@ func (c *Cron) entryExists(id EntryID) bool {
 func (c *Cron) updateJobsCounter(key EntryID, jobRun *JobRun, delta int32) {
 	jobRuns, _ := c.runningJobsMap.LoadOrStore(key, &mtx.RWMtxSlice[*JobRun]{})
 	if delta == 1 {
-		select {
-		case c.jobRunCreatedCh <- jobRun:
-		default:
-		}
+		utils.NonBlockingSend(c.jobRunCreatedCh, jobRun)
 		jobRuns.Append(jobRun)
 	} else {
-		select {
-		case c.jobRunCompletedCh <- jobRun:
-		default:
-		}
+		utils.NonBlockingSend(c.jobRunCompletedCh, jobRun)
 		jobRuns.With(func(jobRuns *[]*JobRun) {
 			if idx := slices.Index(*jobRuns, jobRun); idx != -1 {
 				*jobRuns = slices.Delete(*jobRuns, idx, idx+1)

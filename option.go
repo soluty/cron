@@ -10,12 +10,13 @@ import (
 
 // Config ...
 type Config struct {
-	Ctx       context.Context
-	Location  *time.Location
-	Clock     clockwork.Clock
-	Logger    *log.Logger
-	Parser    ScheduleParser
-	IDFactory EntryIDFactory
+	Ctx                  context.Context
+	Location             *time.Location
+	Clock                clockwork.Clock
+	Logger               *log.Logger
+	Parser               ScheduleParser
+	IDFactory            EntryIDFactory
+	KeepCompletedRunsDur *time.Duration
 }
 
 // Option represents a modification to the default behavior of a Cron.

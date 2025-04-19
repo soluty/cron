@@ -28,22 +28,29 @@ import (
 // specified by the schedule. It may be started, stopped, and the entries may
 // be inspected while running.
 type Cron struct {
-	clock             clockwork.Clock                              // Clock interface (real or mock) used for timing
-	runningJobsCount  atomic.Int32                                 // Count of currently running jobs
-	runningJobsMap    isync.Map[EntryID, *mtx.RWMtxSlice[*JobRun]] // Keep track of currently running jobs
-	cond              sync.Cond                                    // Signals when all jobs have completed
-	entries           mtx.RWMtx[Entries]                           // Thread-safe, sorted list of job entries
-	ctx               context.Context                              // Context to control the scheduler lifecycle
-	cancel            context.CancelFunc                           // Cancels the scheduler context
-	update            chan context.CancelFunc                      // Triggers update in the scheduler loop
-	running           atomic.Bool                                  // Indicates if the scheduler is currently running
-	location          mtx.RWMtx[*time.Location]                    // Thread-safe time zone location
-	logger            *log.Logger                                  // Logger for scheduler events, errors, and diagnostics
-	parser            ScheduleParser                               // Parses cron expressions into schedule objects
-	idFactory         EntryIDFactory                               // Generates a new unique EntryID for each scheduled job
-	ps                *pubsub.PubSub[EntryID, JobEvent]            //
-	jobRunCreatedCh   chan *JobRun                                 //
-	jobRunCompletedCh chan *JobRun                                 //
+	clock                clockwork.Clock                              // Clock interface (real or mock) used for timing
+	runningJobsCount     atomic.Int32                                 // Count of currently running jobs
+	runningJobsMap       isync.Map[EntryID, *mtx.RWMtx[jobRunsInner]] // Keep track of currently running jobs
+	cond                 sync.Cond                                    // Signals when all jobs have completed
+	entries              mtx.RWMtx[Entries]                           // Thread-safe, sorted list of job entries
+	ctx                  context.Context                              // Context to control the scheduler lifecycle
+	cancel               context.CancelFunc                           // Cancels the scheduler context
+	update               chan context.CancelFunc                      // Triggers update in the scheduler loop
+	running              atomic.Bool                                  // Indicates if the scheduler is currently running
+	location             mtx.RWMtx[*time.Location]                    // Thread-safe time zone location
+	logger               *log.Logger                                  // Logger for scheduler events, errors, and diagnostics
+	parser               ScheduleParser                               // Parses cron expressions into schedule objects
+	idFactory            EntryIDFactory                               // Generates a new unique EntryID for each scheduled job
+	ps                   *pubsub.PubSub[EntryID, JobEvent]            //
+	jobRunCreatedCh      chan *JobRun                                 //
+	jobRunCompletedCh    chan *JobRun                                 //
+	keepCompletedRunsDur mtx.Mtx[time.Duration]                       //
+}
+
+type jobRunsInner struct {
+	mapping   map[RunID]*JobRun
+	running   []*JobRun
+	completed []*JobRun
 }
 
 type JobEventType int
@@ -159,26 +166,32 @@ func New(opts ...Option) *Cron {
 	logger := utils.Or(cfg.Logger, log.New(os.Stderr, "cron", log.LstdFlags))
 	parser := utils.Or(cfg.Parser, ScheduleParser(standardParser))
 	idFactory := utils.Or(cfg.IDFactory, UUIDEntryIDFactory())
+	keepCompletedRunsDur := utils.Default(cfg.KeepCompletedRunsDur, 5*time.Second)
 	ctx, cancel := context.WithCancel(parentCtx)
-	return &Cron{
-		cond:              sync.Cond{L: &sync.Mutex{}},
-		clock:             clock,
-		ctx:               ctx,
-		cancel:            cancel,
-		runningJobsMap:    isync.Map[EntryID, *mtx.RWMtxSlice[*JobRun]]{},
-		update:            make(chan context.CancelFunc),
-		location:          mtx.NewRWMtx(location),
-		logger:            logger,
-		parser:            parser,
-		idFactory:         idFactory,
-		ps:                pubsub.NewPubSub[EntryID, JobEvent](),
-		jobRunCreatedCh:   make(chan *JobRun),
-		jobRunCompletedCh: make(chan *JobRun),
+	c := &Cron{
+		cond:                 sync.Cond{L: &sync.Mutex{}},
+		clock:                clock,
+		ctx:                  ctx,
+		cancel:               cancel,
+		runningJobsMap:       isync.Map[EntryID, *mtx.RWMtx[jobRunsInner]]{},
+		update:               make(chan context.CancelFunc),
+		location:             mtx.NewRWMtx(location),
+		logger:               logger,
+		parser:               parser,
+		idFactory:            idFactory,
+		ps:                   pubsub.NewPubSub[EntryID, JobEvent](),
+		jobRunCreatedCh:      make(chan *JobRun),
+		jobRunCompletedCh:    make(chan *JobRun),
+		keepCompletedRunsDur: mtx.NewMtx(keepCompletedRunsDur),
 		entries: mtx.NewRWMtx(Entries{
 			entriesHeap: make(EntryHeap, 0),
 			entriesMap:  make(map[EntryID]*Entry),
 		}),
 	}
+	if keepCompletedRunsDur > 0 {
+		startCleanupThread(c, keepCompletedRunsDur)
+	}
+	return c
 }
 
 // Run the cron scheduler, or no-op if already running.
@@ -262,6 +275,11 @@ func (c *Cron) RunningJobs() []JobRunPublic { return c.runningJobs() }
 // RunningJobsFor ...
 func (c *Cron) RunningJobsFor(entryID EntryID) []JobRunPublic { return c.runningJobsFor(entryID) }
 
+// CompletedJobRunsFor ...
+func (c *Cron) CompletedJobRunsFor(entryID EntryID) []JobRunPublic {
+	return c.completedJobRunsFor(entryID)
+}
+
 // GetRun ...
 func (c *Cron) GetRun(entryID EntryID, runID RunID) (JobRunPublic, error) {
 	return c.getRun(entryID, runID)
@@ -283,6 +301,30 @@ func (c *Cron) SetLocation(newLoc *time.Location) { c.setLocation(newLoc) }
 func (c *Cron) GetNextTime() time.Time { return c.getNextTime() }
 
 //-----------------------------------------------------------------------------
+
+func startCleanupThread(c *Cron, keepCompletedRunsDur time.Duration) {
+	go func() {
+		for {
+			select {
+			case <-c.clock.After(keepCompletedRunsDur):
+			case <-c.ctx.Done():
+				return
+			}
+			for v := range c.runningJobsMap.IterValues() {
+				v.With(func(inner *jobRunsInner) {
+					for i := len(inner.completed) - 1; i >= 0; i-- {
+						now := c.clock.Now()
+						el := inner.completed[i]
+						if el.inner.Get().CompletedAt.Before(now.Add(-keepCompletedRunsDur)) {
+							delete(inner.mapping, el.RunID)
+							inner.completed = slices.Delete(inner.completed, i, i+1)
+						}
+					}
+				})
+			}
+		}
+	}()
+}
 
 func (c *Cron) start() (started bool) {
 	return c.startWith(func() { c.run() }) // sync
@@ -532,8 +574,10 @@ func (c *Cron) remove(id EntryID) {
 
 func (c *Cron) removeEntry(id EntryID) {
 	if jobRuns, ok := c.runningJobsMap.Load(id); ok {
-		jobRuns.Each(func(jobRun *JobRun) {
-			jobRun.cancel()
+		jobRuns.With(func(v *jobRunsInner) {
+			for _, j := range v.running {
+				j.cancel()
+			}
 		})
 	}
 	c.runningJobsMap.Delete(id)
@@ -582,18 +626,21 @@ func (c *Cron) getEntry(id EntryID) (out Entry, err error) {
 
 func (c *Cron) entryIsRunning(id EntryID) bool {
 	jobRuns, ok := c.runningJobsMap.Load(id)
-	return ok && jobRuns.Len() > 0
+	if !ok {
+		return false
+	}
+	var count int
+	jobRuns.RWith(func(v jobRunsInner) { count = len(v.running) })
+	return count > 0
 }
 
 func (c *Cron) getRun(entryID EntryID, runID RunID) (JobRunPublic, error) {
-	if jobRunsSlice, ok := c.runningJobsMap.Load(entryID); ok {
-		var jobRunPub JobRunPublic
-		if err := jobRunsSlice.RWithE(func(jobRuns []*JobRun) error {
-			for _, jobRun := range jobRuns {
-				if jobRun.RunID == runID {
-					jobRunPub = jobRun.Export()
-					return nil
-				}
+	var jobRunPub JobRunPublic
+	if jobRunsIn, ok := c.runningJobsMap.Load(entryID); ok {
+		if err := jobRunsIn.RWithE(func(jobRunsIn1 jobRunsInner) error {
+			if run, ok := jobRunsIn1.mapping[runID]; ok {
+				jobRunPub = run.Export()
+				return nil
 			}
 			return ErrRunNotFound
 		}); err != nil {
@@ -606,10 +653,11 @@ func (c *Cron) getRun(entryID EntryID, runID RunID) (JobRunPublic, error) {
 
 func (c *Cron) cancelRun(entryID EntryID, runID RunID) {
 	if jobRunsSlice, ok := c.runningJobsMap.Load(entryID); ok {
-		jobRunsSlice.With(func(jobRuns *[]*JobRun) {
-			for _, jobRun := range *jobRuns {
+		jobRunsSlice.With(func(jobRuns *jobRunsInner) {
+			for _, jobRun := range (*jobRuns).running {
 				if jobRun.RunID == runID {
 					(*jobRun).cancel()
+					break
 				}
 			}
 		})
@@ -618,8 +666,10 @@ func (c *Cron) cancelRun(entryID EntryID, runID RunID) {
 
 func (c *Cron) runningJobs() (out []JobRunPublic) {
 	for jobRuns := range c.runningJobsMap.IterValues() {
-		jobRuns.Each(func(run *JobRun) {
-			out = append(out, run.Export())
+		jobRuns.RWith(func(v jobRunsInner) {
+			for _, j := range v.running {
+				out = append(out, j.Export())
+			}
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -630,8 +680,24 @@ func (c *Cron) runningJobs() (out []JobRunPublic) {
 
 func (c *Cron) runningJobsFor(entryID EntryID) (out []JobRunPublic) {
 	if jobRuns, ok := c.runningJobsMap.Load(entryID); ok {
-		jobRuns.Each(func(run *JobRun) {
-			out = append(out, run.Export())
+		jobRuns.RWith(func(v jobRunsInner) {
+			for _, j := range v.running {
+				out = append(out, j.Export())
+			}
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	})
+	return
+}
+
+func (c *Cron) completedJobRunsFor(entryID EntryID) (out []JobRunPublic) {
+	if jobRuns, ok := c.runningJobsMap.Load(entryID); ok {
+		jobRuns.RWith(func(v jobRunsInner) {
+			for _, j := range v.completed {
+				out = append(out, j.Export())
+			}
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -645,15 +711,25 @@ func (c *Cron) entryExists(id EntryID) bool {
 }
 
 func (c *Cron) updateJobsCounter(key EntryID, jobRun *JobRun, delta int32) {
-	jobRuns, _ := c.runningJobsMap.LoadOrStore(key, &mtx.RWMtxSlice[*JobRun]{})
+	jobRuns, _ := c.runningJobsMap.LoadOrStore(key, utils.Ptr(mtx.NewRWMtx(jobRunsInner{
+		mapping: make(map[RunID]*JobRun),
+	})))
 	if delta == 1 {
 		utils.NonBlockingSend(c.jobRunCreatedCh, jobRun)
-		jobRuns.Append(jobRun)
+		jobRuns.With(func(v *jobRunsInner) {
+			(*v).mapping[jobRun.RunID] = jobRun
+			(*v).running = append((*v).running, jobRun)
+		})
 	} else {
 		utils.NonBlockingSend(c.jobRunCompletedCh, jobRun)
-		jobRuns.With(func(jobRuns *[]*JobRun) {
-			if idx := slices.Index(*jobRuns, jobRun); idx != -1 {
-				*jobRuns = slices.Delete(*jobRuns, idx, idx+1)
+		jobRuns.With(func(v *jobRunsInner) {
+			if idx := slices.Index((*v).running, jobRun); idx != -1 {
+				(*v).running = slices.Delete((*v).running, idx, idx+1)
+				if c.keepCompletedRunsDur.Get() > 0 {
+					(*v).completed = append((*v).completed, jobRun)
+				} else {
+					delete((*v).mapping, jobRun.RunID)
+				}
 			}
 		})
 	}

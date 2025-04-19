@@ -43,11 +43,13 @@ var css = `
 </style>
 `
 
-var menu = `
+func getMenu() string {
+	return `
 <a href="/">home</a>
 <hr />
 Current time: ` + time.Now().Format(time.DateTime) + `<br />
 <hr />`
+}
 
 func getIndexHandler(c *cron.Cron) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +60,7 @@ func getIndexHandler(c *cron.Cron) http.HandlerFunc {
 		entries := c.Entries()
 		b.WriteString(css + `
 
-` + menu + `
+` + getMenu() + `
 Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
 <table>
 	<thead>
@@ -196,8 +198,9 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 		jobRuns := c.RunningJobsFor(entryID)
+		completedJobRuns := c.CompletedJobRunsFor(entryID)
 		b.WriteString(css + `
-` + menu + `
+` + getMenu() + `
 <h1>` + string(entry.ID) + `</h1>
 Active: ` + utils.Ternary(entry.Active, `<span class="active">T</span>`, `<span class="inactive">F</span>`) + `<br />
 <hr />
@@ -222,6 +225,38 @@ Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
 	<tbody>
 `)
 		for _, jobRun := range jobRuns {
+			b.WriteString(`
+	<tr>
+		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `">` + string(jobRun.Entry.ID) + `</a></span></td>
+		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `/runs/` + string(jobRun.RunID) + `">` + string(jobRun.RunID) + `</a></span></td>
+		<td>` + jobRun.Entry.Label + `</td>
+		<td>` + jobRun.StartedAt.Format(time.DateTime) + `</td>
+		<td>
+			<form method="POST" class="d-inline-block">
+				<input type="hidden" name="formName" value="cancelRun" />
+				<input type="hidden" name="entryID" value="` + string(jobRun.Entry.ID) + `" />
+				<input type="hidden" name="runID" value="` + string(jobRun.RunID) + `" />
+				<input type="submit" value="Cancel" />
+			</form>
+		</td>
+	</tr>`)
+		}
+		b.WriteString(`
+	</tbody>
+</table>
+
+Completed jobs<br />
+<table>
+	<thead>
+		<th>Entry ID</th>
+		<th>Run ID</th>
+		<th>Label</th>
+		<th>Started at</th>
+		<th>Actions</th>
+	</thead>
+	<tbody>
+`)
+		for _, jobRun := range completedJobRuns {
 			b.WriteString(`
 	<tr>
 		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `">` + string(jobRun.Entry.ID) + `</a></span></td>
@@ -289,7 +324,7 @@ func getRunHandler(c *cron.Cron) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 		b.WriteString(css + `
-` + menu + `
+` + getMenu() + `
 <h1>Entry: ` + string(entry.ID) + `</h1>
 <h2>Run: ` + string(jobRun.RunID) + `</h2>
 <form method="POST" class="d-inline-block">

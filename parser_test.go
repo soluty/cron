@@ -187,6 +187,11 @@ func TestBadLocation(t *testing.T) {
 	assert.ErrorContains(t, err, "provided bad location")
 }
 
+func TestBadSpec(t *testing.T) {
+	_, err := secondParser.Parse("TZ=UTC@midnight")
+	assert.ErrorContains(t, err, "invalid spec string")
+}
+
 func TestOptionalSecondSchedule(t *testing.T) {
 	parser := NewParser(SecondOptional | Minute | Hour | Dom | Month | Dow | Descriptor)
 	entries := []struct {

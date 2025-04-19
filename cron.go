@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/alaingilbert/cron/internal/pubsub"
 	"io"
 	"log"
 	"os"
@@ -38,6 +39,36 @@ type Cron struct {
 	logger           *log.Logger                       // Logger for scheduler events, errors, and diagnostics
 	parser           ScheduleParser                    // Parses cron expressions into schedule objects
 	idFactory        EntryIDFactory                    // Generates a new unique EntryID for each scheduled job
+	ps               *pubsub.PubSub[EntryID, JobEvent] //
+}
+
+type JobEventType int
+
+const (
+	BeforeStart JobEventType = iota + 1
+	Completed
+	CompletedNoErr
+	CompletedErr
+	CompletedPanic
+)
+
+func (e JobEventType) String() string {
+	switch e {
+	case BeforeStart:
+		return "BeforeStart"
+	case Completed:
+		return "Completed"
+	case CompletedNoErr:
+		return "CompletedNoErr"
+	case CompletedErr:
+		return "CompletedErr"
+	default:
+		return "Unknown"
+	}
+}
+
+type JobEvent struct {
+	Typ JobEventType
 }
 
 type Entries struct {
@@ -117,6 +148,7 @@ func New(opts ...Option) *Cron {
 		logger:         logger,
 		parser:         parser,
 		idFactory:      idFactory,
+		ps:             pubsub.NewPubSub[EntryID, JobEvent](),
 		entries: mtx.NewRWMtx(Entries{
 			entriesHeap: make(EntryHeap, 0),
 			entriesMap:  make(map[EntryID]*Entry),
@@ -162,6 +194,11 @@ func (c *Cron) UpdateSchedule(id EntryID, schedule Schedule) error {
 // UpdateScheduleWithSpec ...
 func (c *Cron) UpdateScheduleWithSpec(id EntryID, spec string) error {
 	return c.updateScheduleWithSpec(id, spec)
+}
+
+// Sub subscribes to Job events
+func (c *Cron) Sub(id EntryID) *pubsub.Sub[EntryID, JobEvent] {
+	return c.ps.Subscribe([]EntryID{id})
 }
 
 // Enable ...
@@ -513,13 +550,19 @@ func (c *Cron) runWithRecovery(entry Entry) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.logger.Printf("%v\n%s\n", r, string(debug.Stack()))
+			c.ps.Pub(entry.ID, JobEvent{Typ: CompletedPanic})
 		}
+		c.ps.Pub(entry.ID, JobEvent{Typ: Completed})
 	}()
+	c.ps.Pub(entry.ID, JobEvent{Typ: BeforeStart})
 	if err := entry.job.Run(c.ctx, c, entry); err != nil {
 		msg := fmt.Sprintf("error running job %s", entry.ID)
 		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
 		msg += " : " + err.Error()
 		c.logger.Println(msg)
+		c.ps.Pub(entry.ID, JobEvent{Typ: CompletedErr})
+	} else {
+		c.ps.Pub(entry.ID, JobEvent{Typ: CompletedNoErr})
 	}
 }
 

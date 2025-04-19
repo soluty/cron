@@ -205,6 +205,9 @@ func (c *Cron) UpdateScheduleWithSpec(id EntryID, spec string) error {
 	return c.updateScheduleWithSpec(id, spec)
 }
 
+// UpdateLabel ...
+func (c *Cron) UpdateLabel(id EntryID, label string) { c.updateLabel(id, label) }
+
 // Sub subscribes to Job events
 func (c *Cron) Sub(id EntryID) *pubsub.Sub[EntryID, JobEvent] {
 	return c.ps.Subscribe([]EntryID{id})
@@ -345,6 +348,14 @@ func (c *Cron) addEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
 	})
 	c.entriesUpdated() // addEntry
 	return entry.ID, nil
+}
+
+func (c *Cron) updateLabel(id EntryID, label string) {
+	c.entries.With(func(entries *Entries) {
+		if entry, ok := entries.entriesMap[id]; ok {
+			(*entry).Label = label
+		}
+	})
 }
 
 func (c *Cron) setEntryActive(id EntryID, active bool) {

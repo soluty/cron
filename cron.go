@@ -490,6 +490,7 @@ func (c *Cron) remove(id EntryID) {
 }
 
 func (c *Cron) removeEntry(id EntryID) {
+	c.runningJobsMap.Delete(id)
 	c.entries.With(func(entries *Entries) {
 		delete(entries.entriesMap, id)
 		removeEntry(&entries.entriesHeap, id)

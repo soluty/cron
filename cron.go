@@ -189,7 +189,7 @@ func New(opts ...Option) *Cron {
 		}),
 	}
 	if keepCompletedRunsDur > 0 {
-		startCleanupThread(c, keepCompletedRunsDur)
+		startCleanupThread(c)
 	}
 	return c
 }
@@ -302,9 +302,10 @@ func (c *Cron) GetNextTime() time.Time { return c.getNextTime() }
 
 //-----------------------------------------------------------------------------
 
-func startCleanupThread(c *Cron, keepCompletedRunsDur time.Duration) {
+func startCleanupThread(c *Cron) {
 	go func() {
 		for {
+			keepCompletedRunsDur := c.keepCompletedRunsDur.Get()
 			select {
 			case <-c.clock.After(keepCompletedRunsDur):
 			case <-c.ctx.Done():

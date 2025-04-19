@@ -203,8 +203,30 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 		b.WriteString(css + `
 ` + getMenu() + `
 <h1>` + string(entry.ID) + `</h1>
-Active: ` + utils.Ternary(entry.Active, `<span class="success">T</span>`, `<span class="danger">F</span>`) + `<br />
+<div>Label: ` + entry.Label + `</div>
+<div>Active: ` + utils.Ternary(entry.Active, `<span class="success">T</span>`, `<span class="danger">F</span>`) + `</div>
 <hr />
+<div class="mb-1">
+`)
+		if entry.Active {
+			b.WriteString(`
+		<form method="POST" class="d-inline-block">
+			<input type="hidden" name="formName" value="disableEntry" />
+			<input type="hidden" name="entryID" value="` + string(entry.ID) + `" />
+			<input type="submit" value="Disable" />
+		</form>
+`)
+		} else {
+			b.WriteString(`
+		<form method="POST" class="d-inline-block">
+			<input type="hidden" name="formName" value="enableEntry" />
+			<input type="hidden" name="entryID" value="` + string(entry.ID) + `" />
+			<input type="submit" value="Enable" />
+		</form>
+`)
+		}
+		b.WriteString(`
+</div>
 <div>
 	<label for="label">Job label:</label>
 	<form method="POST">
@@ -215,7 +237,7 @@ Active: ` + utils.Ternary(entry.Active, `<span class="success">T</span>`, `<span
 </div>
 <hr />
 Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
-<table>
+<table class="mb-1">
 	<thead>
 		<th>Entry ID</th>
 		<th>Run ID</th>
@@ -246,8 +268,8 @@ Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
 	</tbody>
 </table>
 
-Completed jobs<br />
-<table>
+Completed jobs (` + strconv.Itoa(len(completedJobRuns)) + `)<br />
+<table class="mb-1">
 	<thead>
 		<th>Entry ID</th>
 		<th>Run ID</th>
@@ -271,7 +293,7 @@ Completed jobs<br />
 			if jobRun.Error != nil {
 				b.WriteString(`<span class="danger" title="` + jobRun.Error.Error() + `">Error</span>`)
 			} else {
-				b.WriteString(`<span class="success">-</span>`)
+				b.WriteString(`<span>-</span>`)
 			}
 			b.WriteString(`
 		</td>
@@ -279,7 +301,7 @@ Completed jobs<br />
 			if jobRun.Panic {
 				b.WriteString(`<span class="danger">Panic</span>`)
 			} else {
-				b.WriteString(`<span class="success">-</span>`)
+				b.WriteString(`<span>-</span>`)
 			}
 			b.WriteString(`
 		</td>
@@ -306,6 +328,12 @@ func postEntryHandler(c *cron.Cron) http.HandlerFunc {
 		if formName == "updateLabel" {
 			label := r.PostFormValue("label")
 			c.UpdateLabel(entryID, label)
+		} else if formName == "enableEntry" {
+			entryID := cron.EntryID(r.PostFormValue("entryID"))
+			c.Enable(entryID)
+		} else if formName == "disableEntry" {
+			entryID := cron.EntryID(r.PostFormValue("entryID"))
+			c.Disable(entryID)
 		} else if formName == "cancelRun" {
 			entryID := cron.EntryID(r.PostFormValue("entryID"))
 			runID := cron.RunID(r.PostFormValue("runID"))

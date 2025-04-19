@@ -668,6 +668,10 @@ type jobRunInner struct {
 	Panic       bool
 }
 
+func (j *jobRunInner) addEvent(evt JobEvent) {
+	j.events = append(j.events, evt)
+}
+
 func (j *JobRun) Export() JobRunPublic {
 	innerCopy := j.inner.Get()
 	return JobRunPublic{
@@ -728,66 +732,87 @@ func (c *Cron) runWithRecovery(jobRun *JobRun) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Printf("%v\n%s\n", r, string(debug.Stack()))
-			makePanicEvent(c, entry, jobRun)
+			makeEvent(c, entry, jobRun, CompletedPanic)
 		}
-		makeCompletedEvent(c, entry, jobRun)
+		makeEvent(c, entry, jobRun, Completed)
 	}()
-	makeStartEvent(c, entry, jobRun)
+	makeEvent(c, entry, jobRun, Start)
 	if err := entry.job.Run(jobRun.ctx, c, entry); err != nil {
 		msg := fmt.Sprintf("error running job %s", entry.ID)
 		msg += utils.TernaryOrZero(entry.Label != "", " "+entry.Label)
 		msg += " : " + err.Error()
 		logger.Println(msg)
-		makeCompletedErrEvent(c, entry, jobRun, err)
+		makeEventErr(c, entry, jobRun, CompletedErr, err)
 	} else {
-		makeCompletedNoErrEvent(c, entry, jobRun)
+		makeEvent(c, entry, jobRun, CompletedNoErr)
 	}
 }
 
-func makePanicEvent(c *Cron, entry Entry, jobRun *JobRun) {
-	evt := NewJobEvent(CompletedPanic, jobRun)
-	jobRun.inner.With(func(inner *jobRunInner) {
-		(*inner).Panic = true
-		(*inner).events = append((*inner).events, evt)
-	})
+func makeEvent(c *Cron, entry Entry, jobRun *JobRun, typ JobEventType) {
+	makeEventErr(c, entry, jobRun, typ, nil)
+}
+
+func makeEventErr(c *Cron, entry Entry, jobRun *JobRun, typ JobEventType, err error) {
+	var evt JobEvent
+	switch typ {
+	case CompletedPanic:
+		evt = makePanicEvent(jobRun)
+	case Completed:
+		evt = makeCompletedEvent(jobRun)
+	case Start:
+		evt = makeStartEvent(jobRun)
+	case CompletedErr:
+		evt = makeCompletedErrEvent(jobRun, err)
+	case CompletedNoErr:
+		evt = makeCompletedNoErrEvent(jobRun)
+	}
 	c.ps.Pub(entry.ID, evt)
 }
 
-func makeCompletedEvent(c *Cron, entry Entry, jobRun *JobRun) {
+func makePanicEvent(jobRun *JobRun) JobEvent {
+	evt := NewJobEvent(CompletedPanic, jobRun)
+	jobRun.inner.With(func(inner *jobRunInner) {
+		(*inner).Panic = true
+		inner.addEvent(evt)
+	})
+	return evt
+}
+
+func makeCompletedEvent(jobRun *JobRun) JobEvent {
 	now := jobRun.clock.Now()
 	evt := NewJobEvent(Completed, jobRun)
 	jobRun.inner.With(func(inner *jobRunInner) {
 		(*inner).CompletedAt = utils.Ptr(now)
-		(*inner).events = append((*inner).events, evt)
+		inner.addEvent(evt)
 	})
-	c.ps.Pub(entry.ID, evt)
+	return evt
 }
 
-func makeStartEvent(c *Cron, entry Entry, jobRun *JobRun) {
+func makeStartEvent(jobRun *JobRun) JobEvent {
 	now := jobRun.clock.Now()
 	evt := NewJobEvent(Start, jobRun)
 	jobRun.inner.With(func(inner *jobRunInner) {
 		(*inner).StartedAt = utils.Ptr(now)
-		(*inner).events = append((*inner).events, evt)
+		inner.addEvent(evt)
 	})
-	c.ps.Pub(entry.ID, evt)
+	return evt
 }
 
-func makeCompletedErrEvent(c *Cron, entry Entry, jobRun *JobRun, err error) {
+func makeCompletedErrEvent(jobRun *JobRun, err error) JobEvent {
 	evt := NewJobEvent(CompletedErr, jobRun)
 	jobRun.inner.With(func(inner *jobRunInner) {
 		(*inner).Error = err
-		(*inner).events = append((*inner).events, evt)
+		inner.addEvent(evt)
 	})
-	c.ps.Pub(entry.ID, evt)
+	return evt
 }
 
-func makeCompletedNoErrEvent(c *Cron, entry Entry, jobRun *JobRun) {
+func makeCompletedNoErrEvent(jobRun *JobRun) JobEvent {
 	evt := NewJobEvent(CompletedNoErr, jobRun)
 	jobRun.inner.With(func(inner *jobRunInner) {
-		(*inner).events = append((*inner).events, evt)
+		inner.addEvent(evt)
 	})
-	c.ps.Pub(entry.ID, evt)
+	return evt
 }
 
 func (c *Cron) signalJobCompleted() {

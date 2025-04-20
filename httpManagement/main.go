@@ -337,13 +337,11 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 {{ if .Entry.Active }}
 		<form method="POST" class="d-inline-block">
 			<input type="hidden" name="formName" value="disableEntry" />
-			<input type="hidden" name="entryID" value="{{ .Entry.ID }}" />
 			<input type="submit" value="Disable" />
 		</form>
 {{ else }}
 		<form method="POST" class="d-inline-block">
 			<input type="hidden" name="formName" value="enableEntry" />
-			<input type="hidden" name="entryID" value="{{ .Entry.ID }}" />
 			<input type="submit" value="Enable" />
 		</form>
 {{ end }}
@@ -384,7 +382,6 @@ Running jobs ({{ len .JobRuns }})<br />
 				<td>
 					<form method="POST" class="d-inline-block">
 						<input type="hidden" name="formName" value="cancelRun" />
-						<input type="hidden" name="entryID" value="{{ .Entry.ID }}" />
 						<input type="hidden" name="runID" value="{{ .RunID }}" />
 						<input type="submit" value="Cancel" />
 					</form>
@@ -463,13 +460,10 @@ func postEntryHandler(c *cron.Cron) http.HandlerFunc {
 			spec := r.PostFormValue("spec")
 			_ = c.UpdateScheduleWithSpec(entryID, spec)
 		} else if formName == "enableEntry" {
-			entryID := cron.EntryID(r.PostFormValue("entryID"))
 			c.Enable(entryID)
 		} else if formName == "disableEntry" {
-			entryID := cron.EntryID(r.PostFormValue("entryID"))
 			c.Disable(entryID)
 		} else if formName == "cancelRun" {
-			entryID := cron.EntryID(r.PostFormValue("entryID"))
 			runID := cron.RunID(r.PostFormValue("runID"))
 			_ = c.CancelRun(entryID, runID)
 		}

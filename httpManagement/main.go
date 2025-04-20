@@ -223,12 +223,14 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 </head>
 <body>
 ` + getMenu() + `
-<h1>{{ .Entry.ID }}</h1>
-<div>Label: {{ .Entry.Label }}</div>
-<div>Spec: {{ if .Entry.Spec }}{{ .Entry.Spec }}{{ else }}-{{ end }}</div>
-<div>Active: {{ if .Entry.Active }}<span class="success">T</span>{{ else }}<span class="danger">F</span>{{ end }}</div>
-<div>Prev: {{ .Entry.Prev | FmtDate }}</div>
-<div>Next: {{ .Entry.Next | FmtDate }}</div>
+<table class="mb-1">
+	<tr><td>Entry ID:</td><td><span class="monospace">{{ .Entry.ID }}</span></td></tr>
+	<tr><td>Label:</td><td>{{ .Entry.Label }}</td></tr>
+	<tr><td>Spec:</td><td>{{ if .Entry.Spec }}{{ .Entry.Spec }}{{ else }}-{{ end }}</td></tr>
+	<tr><td>Active:</td><td>{{ if .Entry.Active }}<span class="success">T</span>{{ else }}<span class="danger">F</span>{{ end }}</td></tr>
+	<tr><td>Prev:</td><td>{{ .Entry.Prev | FmtDate }}</td></tr>
+	<tr><td>Next:</td><td>{{ .Entry.Next | FmtDate }}</td></tr>
+</table>
 <hr />
 <div class="mb-1">
 {{ if .Entry.Active }}
@@ -402,10 +404,10 @@ func getRunHandler(c *cron.Cron) http.HandlerFunc {
 </head>
 <body>
 ` + getMenu() + `
-<h1>Run: {{ .JobRun.RunID }}</h1>
-<div class="mb-1">
-	Entry: <span class="monospace"><a href="/entries/{{ .Entry.ID }}">{{ .Entry.ID }}</a></span><br />
-</div>
+<table class="mb-1">
+	<tr><td>Run ID:</td><td><span class="monospace">{{ .JobRun.RunID }}</span></td></tr>
+	<tr><td>Entry ID:</td><td><span class="monospace"><a href="/entries/{{ .Entry.ID }}">{{ .Entry.ID }}</a></span></td></tr>
+</table>
 {{ if not .JobRun.CompletedAt }}
 	<form method="POST">
 		<input type="hidden" name="formName" value="cancelRun" />
@@ -415,7 +417,7 @@ func getRunHandler(c *cron.Cron) http.HandlerFunc {
 	</form>
 {{ end }}
 <hr />
-Events:<br />
+Events ({{ len .JobRun.Events }})<br />
 <table>
 	<thead>
 		<tr><th>Type</th><th>Created at</th></tr>

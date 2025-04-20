@@ -567,7 +567,7 @@ func postRunHandler(c *cron.Cron) http.HandlerFunc {
 		formName := r.PostFormValue("formName")
 		if formName == "cancelRun" {
 			_ = c.CancelRun(entry.ID, jobRun.RunID)
-			w.Header().Set("Location", "/")
+			w.Header().Set("Location", "/entries/"+string(entryID))
 			w.WriteHeader(http.StatusSeeOther)
 			return
 		}

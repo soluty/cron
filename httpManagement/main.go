@@ -142,12 +142,20 @@ aside,
 `
 
 func getMenu(c *cron.Cron) string {
-	return `
+	out := `
 <a href="/">home</a>
 <hr />
 Current time: ` + time.Now().Format(time.DateTime) + `<br />
-Last cleanup: ` + utils.Ternary(c.GetCleanupTS().IsZero(), "-", c.GetCleanupTS().Format(time.DateTime)) + `<br />
+Last cleanup: 
+`
+	if c.GetCleanupTS().IsZero() {
+		out += `-`
+	} else {
+		out += c.GetCleanupTS().Format(time.DateTime) + ` <small>(` + utils.ShortDur(c.GetCleanupTS()) + `)</small>`
+	}
+	out += `
 <hr />`
+	return out
 }
 
 var funcsMap = template.FuncMap{

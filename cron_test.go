@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/alaingilbert/cron/internal/pubsub"
 	"github.com/alaingilbert/cron/internal/utils"
 	"io"
 	"log"
@@ -1080,6 +1081,87 @@ func TestEventsString(t *testing.T) {
 	assert.Equal(t, "Unknown", JobEventType(-3).String())
 }
 
+type EventListener struct {
+	nbStart          atomic.Int32
+	nbCompleted      atomic.Int32
+	nbCompletedNoErr atomic.Int32
+	nbCompletedErr   atomic.Int32
+	nbCompletedPanic atomic.Int32
+	startCh          chan struct{}
+	completedCh      chan struct{}
+	completedErrCh   chan struct{}
+	completedNoErrCh chan struct{}
+	completedPanicCh chan struct{}
+	cond             sync.Cond
+}
+
+func NewEventListener(c *Cron, id EntryID) *EventListener {
+	l := &EventListener{
+		startCh:          make(chan struct{}, 100),
+		completedCh:      make(chan struct{}, 100),
+		completedErrCh:   make(chan struct{}, 100),
+		completedNoErrCh: make(chan struct{}, 100),
+		completedPanicCh: make(chan struct{}, 100),
+		cond:             *sync.NewCond(&sync.Mutex{}),
+	}
+	c1 := make(chan struct{})
+	go func() {
+		sub := c.Sub(id)
+		close(c1)
+		for {
+			var payload pubsub.Payload[EntryID, JobEvent]
+			select {
+			case <-c.ctx.Done():
+				return
+			case payload = <-sub.ReceiveCh():
+			}
+			if payload.Msg.Typ == Start {
+				l.nbStart.Add(1)
+				utils.NonBlockingSend(l.startCh, struct{}{})
+			} else if payload.Msg.Typ == Completed {
+				l.nbCompleted.Add(1)
+				utils.NonBlockingSend(l.completedCh, struct{}{})
+			} else if payload.Msg.Typ == CompletedErr {
+				l.nbCompletedErr.Add(1)
+				utils.NonBlockingSend(l.completedErrCh, struct{}{})
+			} else if payload.Msg.Typ == CompletedNoErr {
+				l.nbCompletedNoErr.Add(1)
+				utils.NonBlockingSend(l.completedNoErrCh, struct{}{})
+			} else if payload.Msg.Typ == CompletedPanic {
+				l.nbCompletedPanic.Add(1)
+				utils.NonBlockingSend(l.completedPanicCh, struct{}{})
+			}
+			l.cond.L.Lock()
+			l.cond.Signal()
+			l.cond.L.Unlock()
+		}
+	}()
+	select {
+	case <-c1:
+	case <-c.ctx.Done():
+	}
+	return l
+}
+
+func (l *EventListener) NbStart() int32                    { return l.nbStart.Load() }
+func (l *EventListener) NbCompleted() int32                { return l.nbCompleted.Load() }
+func (l *EventListener) NbCompletedErr() int32             { return l.nbCompletedErr.Load() }
+func (l *EventListener) NbCompletedNoErr() int32           { return l.nbCompletedNoErr.Load() }
+func (l *EventListener) NbCompletedPanic() int32           { return l.nbCompletedPanic.Load() }
+func (l *EventListener) StartCh() <-chan struct{}          { return l.startCh }
+func (l *EventListener) CompletedCh() <-chan struct{}      { return l.completedCh }
+func (l *EventListener) CompletedNoErrCh() <-chan struct{} { return l.completedNoErrCh }
+func (l *EventListener) CompletedErrCh() <-chan struct{}   { return l.completedErrCh }
+func (l *EventListener) CompletedPanicCh() <-chan struct{} { return l.completedPanicCh }
+
+func (l *EventListener) Wait(clb func() bool) {
+	l.cond.L.Lock()
+	for !clb() {
+		l.cond.Wait()
+	}
+	l.cond.L.Unlock()
+}
+
 func TestEvents(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 59, 0, time.UTC))
 	cron := New(WithClock(clock), WithLogger(log.New(io.Discard, "", log.LstdFlags)))
@@ -1088,38 +1170,19 @@ func TestEvents(t *testing.T) {
 		clock.SleepNotify(150*time.Second, c1) // sleep 2m30s
 	}))
 	cron.Start()
-	var nbWithErr, nbNoErr atomic.Int32
-	cond := sync.Cond{L: &sync.Mutex{}}
-	onErrCh := make(chan struct{})
-	go func() {
-		sub := cron.Sub(id)
-		for payload := range sub.ReceiveCh() {
-			if payload.Msg.Typ == CompletedErr {
-				nbWithErr.Add(1)
-				onErrCh <- struct{}{}
-			} else if payload.Msg.Typ == CompletedNoErr {
-				nbNoErr.Add(1)
-			}
-			cond.L.Lock()
-			cond.Signal()
-			cond.L.Unlock()
-		}
-	}()
+
+	l := NewEventListener(cron, id)
 
 	advanceAndCycleNoWait(cron, time.Second)    // after 1s, job starts
-	<-c1                                        // wait until the job is sleeping  before advancing clock
+	<-c1                                        // wait until the job is started before advancing clock
 	advanceAndCycleNoWait(cron, time.Minute)    // after 1m another job starts but is skipped
-	<-onErrCh                                   // Wait until we receive the failed event before advancing clock
+	<-l.CompletedErrCh()                        // Wait until we receive the failed event before advancing clock
 	advanceAndCycleNoWait(cron, time.Minute)    // after 2m another job starts but is skipped
-	<-onErrCh                                   // Wait until we receive the failed event before advancing clock
+	<-l.CompletedErrCh()                        // Wait until we receive the failed event before advancing clock
 	advanceAndCycleNoWait(cron, 30*time.Second) // after 2m30s job is completed
 
 	// Wait until we receive all events (1 completed, 2 failed)
-	cond.L.Lock()
-	for !(nbWithErr.Load() == 2 && nbNoErr.Load() == 1) {
-		cond.Wait()
-	}
-	cond.L.Unlock()
+	l.Wait(func() bool { return l.NbCompletedErr() == 2 && l.NbCompletedNoErr() == 1 })
 }
 
 func TestRunningJobs(t *testing.T) {

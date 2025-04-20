@@ -9,6 +9,7 @@ Do not sort all entries at every iteration
 Use Heap data structure to store entries  
 Can ask the cron object if a job is currently running with `isRunning := c.IsRunning(entryID)`  
 Tests runs in under a second (instead of over a minute)  
+Comes with a complete admin web interface built-in  
 
 ```go
 package main

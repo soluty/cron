@@ -3,6 +3,7 @@ package httpManagement
 import (
 	"bytes"
 	"github.com/alaingilbert/cron"
+	"github.com/alaingilbert/cron/internal/utils"
 	"html/template"
 	"net/http"
 	"slices"
@@ -147,7 +148,8 @@ Current time: ` + time.Now().Format(time.DateTime) + `<br />
 }
 
 var funcsMap = template.FuncMap{
-	"FmtDate": func(t time.Time) string { return t.Format(time.DateTime) },
+	"FmtDate":  func(t time.Time) string { return t.Format(time.DateTime) },
+	"ShortDur": func(t time.Time) string { return utils.ShortDur(t) },
 }
 
 func getIndexHandler(c *cron.Cron) http.HandlerFunc {
@@ -324,8 +326,8 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 	<tr><td>Label:</td><td>{{ .Entry.Label }}</td></tr>
 	<tr><td>Spec:</td><td>{{ if .Entry.Spec }}{{ .Entry.Spec }}{{ else }}-{{ end }}</td></tr>
 	<tr><td>Active:</td><td>{{ if .Entry.Active }}<span class="success">T</span>{{ else }}<span class="danger">F</span>{{ end }}</td></tr>
-	<tr><td>Prev:</td><td>{{ .Entry.Prev | FmtDate }}</td></tr>
-	<tr><td>Next:</td><td>{{ .Entry.Next | FmtDate }}</td></tr>
+	<tr><td>Prev:</td><td>{{ .Entry.Prev | FmtDate }}{{ if not .Entry.Prev.IsZero }} ({{ .Entry.Prev | ShortDur }}){{ end }}</td></tr>
+	<tr><td>Next:</td><td>{{ .Entry.Next | FmtDate }}{{ if not .Entry.Next.IsZero }} ({{ .Entry.Next | ShortDur }}){{ end }}</td></tr>
 </table>
 <hr />
 <div class="mb-1">
@@ -529,7 +531,10 @@ Events ({{ len .JobRun.Events }})<br />
 		{{ range .JobRun.Events }}
 			<tr>
 				<td>{{ .Typ }}</td>
-				<td>{{ .CreatedAt | FmtDate }}</td>
+				<td>
+					{{ .CreatedAt | FmtDate }}
+					({{ .CreatedAt | ShortDur }})
+				</td>
 			</tr>
 		{{ else }}
 			<tr><td colspan="2"><em>No events</em></td></tr>

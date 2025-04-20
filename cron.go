@@ -691,21 +691,17 @@ func (c *Cron) runningJobs() (out []JobRunPublic) {
 }
 
 func (c *Cron) runningJobsFor(entryID EntryID) (out []JobRunPublic, err error) {
-	if jobRuns, ok := c.runningJobsMap.Load(entryID); ok {
-		jobRuns.RWith(func(v jobRunsInner) {
-			out = exportJobRuns(v.running)
-		})
-	} else {
-		return nil, ErrEntryNotFound
-	}
-	sortJobRunsPublic(out)
-	return
+	return c.jobRunsForWith(entryID, func(v jobRunsInner) []*JobRun { return v.running })
 }
 
 func (c *Cron) completedJobRunsFor(entryID EntryID) (out []JobRunPublic, err error) {
+	return c.jobRunsForWith(entryID, func(v jobRunsInner) []*JobRun { return v.completed })
+}
+
+func (c *Cron) jobRunsForWith(entryID EntryID, clb func(jobRunsInner) []*JobRun) (out []JobRunPublic, err error) {
 	if jobRuns, ok := c.runningJobsMap.Load(entryID); ok {
 		jobRuns.RWith(func(v jobRunsInner) {
-			out = exportJobRuns(v.completed)
+			out = exportJobRuns(clb(v))
 		})
 	} else {
 		return nil, ErrEntryNotFound

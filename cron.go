@@ -198,10 +198,10 @@ func (c *Cron) Enable(id EntryID) { c.setEntryActive(id, true) }
 func (c *Cron) Disable(id EntryID) { c.setEntryActive(id, false) }
 
 // Entries returns a snapshot of the cron entries.
-func (c *Cron) Entries() (out []Entry) { return c.getEntries() }
+func (c *Cron) Entries() []Entry { return c.getEntries() }
 
 // Entry returns a snapshot of the given entry, or nil if it couldn't be found.
-func (c *Cron) Entry(id EntryID) (out Entry, err error) { return c.getEntry(id) }
+func (c *Cron) Entry(id EntryID) (Entry, error) { return c.getEntry(id) }
 
 // Remove an entry from being run in the future.
 func (c *Cron) Remove(id EntryID) { c.remove(id) }

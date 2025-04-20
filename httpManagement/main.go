@@ -235,7 +235,7 @@ Entries ({{ len .Entries }})<br />
 					<form method="POST" class="d-inline-block">
 						<input type="hidden" name="formName" value="runNow" />
 						<input type="hidden" name="entryID" value="{{ .ID }}" />
-						<input type="submit" value="Run now" />
+						<input type="submit" value="Run now"{{ if not .Active }} disabled{{ end }} />
 					</form>
 					{{ if .Active }}
 						<form method="POST" class="d-inline-block">

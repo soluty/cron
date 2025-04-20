@@ -5,6 +5,7 @@ import (
 	"github.com/alaingilbert/cron"
 	"html/template"
 	"net/http"
+	"slices"
 	"time"
 )
 
@@ -309,6 +310,7 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		jobRuns, _ := c.RunningJobsFor(entryID)
 		completedJobRuns, _ := c.CompletedJobRunsFor(entryID)
+		slices.Reverse(completedJobRuns)
 		tmpl, _ := template.New("").Funcs(funcsMap).Parse(`
 <!doctype html>
 <html>

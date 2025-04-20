@@ -3,9 +3,8 @@ package httpManagement
 import (
 	"bytes"
 	"github.com/alaingilbert/cron"
-	"github.com/alaingilbert/cron/internal/utils"
+	"html/template"
 	"net/http"
-	"strconv"
 	"time"
 )
 
@@ -52,6 +51,10 @@ Current time: ` + time.Now().Format(time.DateTime) + `<br />
 <hr />`
 }
 
+var funcsMap = template.FuncMap{
+	"FmtDate": func(t time.Time) string { return t.Format(time.DateTime) },
+}
+
 func getIndexHandler(c *cron.Cron) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var b bytes.Buffer
@@ -59,10 +62,16 @@ func getIndexHandler(c *cron.Cron) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		jobRuns := c.RunningJobs()
 		entries := c.Entries()
-		b.WriteString(css + `
 
+		tmpl, _ := template.New("").Funcs(funcsMap).Parse(`
+<!doctype html>
+<html>
+<head>
+	` + css + `
+</head>
+<body>
 ` + getMenu() + `
-Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
+Running jobs ({{ len .JobRuns }})<br />
 <table>
 	<thead>
 		<th>Entry ID</th>
@@ -72,31 +81,31 @@ Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
 		<th>Actions</th>
 	</thead>
 	<tbody>
-`)
-		for _, jobRun := range jobRuns {
-			b.WriteString(`
-	<tr>
-		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `">` + string(jobRun.Entry.ID) + `</a></span></td>
-		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `/runs/` + string(jobRun.RunID) + `">` + string(jobRun.RunID) + `</a></span></td>
-		<td>` + jobRun.Entry.Label + `</td>
-		<td>` + jobRun.StartedAt.Format(time.DateTime) + `</td>
-		<td>
-			<form method="POST" class="d-inline-block">
-				<input type="hidden" name="formName" value="cancelRun" />
-				<input type="hidden" name="entryID" value="` + string(jobRun.Entry.ID) + `" />
-				<input type="hidden" name="runID" value="` + string(jobRun.RunID) + `" />
-				<input type="submit" value="Cancel" />
-			</form>
-		</td>
-	</tr>`)
-		}
-		b.WriteString(`
+		{{ range .JobRuns }}
+			<tr>
+				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}">{{ .Entry.ID }}</a></span></td>
+				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}/runs/{{ .RunID }}">{{ .RunID }}</a></span></td>
+				<td>{{ .Entry.Label }}</td>
+				<td>{{ .StartedAt | FmtDate }}</td>
+				<td>
+					<form method="POST" class="d-inline-block">
+						<input type="hidden" name="formName" value="cancelRun" />
+						<input type="hidden" name="entryID" value="{{ .Entry.ID }}" />
+						<input type="hidden" name="runID" value="{{ .RunID }}" />
+						<input type="submit" value="Cancel" />
+					</form>
+				</td>
+			</tr>
+		{{ else }}
+			<tr><td colspan="5"><em>No running jobs</em></td></tr>
+		{{ end }}
 	</tbody>
 </table>
 
+
 <hr />
 
-Entries (` + strconv.Itoa(len(entries)) + `)<br />
+Entries ({{ len .Entries }})<br />
 
 <table>
 	<thead>
@@ -110,53 +119,57 @@ Entries (` + strconv.Itoa(len(entries)) + `)<br />
 		</tr>
 	</thead>
 	<tbody>
-`)
-		for _, entry := range entries {
-			b.WriteString(`
-<tr>
-	<td><span class="monospace"><a href="/entries/` + string(entry.ID) + `">` + string(entry.ID) + `</a></span></td>
-	<td>` + entry.Label + `</td>
-	<td>` + entry.Prev.Format(time.DateTime) + `</td>
-	<td>` + entry.Next.Format(time.DateTime) + `</td>
-	<td>` + utils.Ternary(entry.Active, `<span class="success">T</span>`, `<span class="danger">F</span>`) + `</td>
-	<td>
-		<form method="POST" class="d-inline-block">
-			<input type="hidden" name="formName" value="runNow" />
-			<input type="hidden" name="entryID" value="` + string(entry.ID) + `" />
-			<input type="submit" value="Run now" />
-		</form>
-`)
-			if entry.Active {
-				b.WriteString(`
-		<form method="POST" class="d-inline-block">
-			<input type="hidden" name="formName" value="disableEntry" />
-			<input type="hidden" name="entryID" value="` + string(entry.ID) + `" />
-			<input type="submit" value="Disable" />
-		</form>
-`)
-			} else {
-				b.WriteString(`
-		<form method="POST" class="d-inline-block">
-			<input type="hidden" name="formName" value="enableEntry" />
-			<input type="hidden" name="entryID" value="` + string(entry.ID) + `" />
-			<input type="submit" value="Enable" />
-		</form>
-`)
-			}
-			b.WriteString(`
-		<form method="POST" class="d-inline-block">
-			<input type="hidden" name="formName" value="removeEntry" />
-			<input type="hidden" name="entryID" value="` + string(entry.ID) + `" />
-			<input type="submit" value="Remove" />
-		</form>
-	</td>
-</tr>
-`)
-		}
-		b.WriteString(`
+		{{ range .Entries }}
+			<tr>
+				<td><span class="monospace"><a href="/entries/{{ .ID }}">{{ .ID }}</a></span></td>
+				<td>{{ .Label }}</td>
+				<td>{{ .Prev | FmtDate }}</td>
+				<td>{{ .Next | FmtDate }}</td>
+				<td>
+					{{ if .Active }}
+						<span class="success">T</span>
+					{{ else }}
+						<span class="danger">F</span>
+					{{ end }}
+				</td>
+				<td>
+					<form method="POST" class="d-inline-block">
+						<input type="hidden" name="formName" value="runNow" />
+						<input type="hidden" name="entryID" value="{{ .ID }}" />
+						<input type="submit" value="Run now" />
+					</form>
+					{{ if .Active }}
+						<form method="POST" class="d-inline-block">
+							<input type="hidden" name="formName" value="disableEntry" />
+							<input type="hidden" name="entryID" value="{{ .ID }}" />
+							<input type="submit" value="Disable" />
+						</form>
+					{{ else }}
+						<form method="POST" class="d-inline-block">
+							<input type="hidden" name="formName" value="enableEntry" />
+							<input type="hidden" name="entryID" value="{{ .ID }}" />
+							<input type="submit" value="Enable" />
+						</form>
+					{{ end }}
+					<form method="POST" class="d-inline-block">
+						<input type="hidden" name="formName" value="removeEntry" />
+						<input type="hidden" name="entryID" value="{{ .ID }}" />
+						<input type="submit" value="Remove" />
+					</form>
+				</td>
+			</tr>
+		{{ else }}
+			<tr><td colspan="6"><em>No entries</em></td></tr>
+		{{ end }}
 	</tbody>
 </table>
+</body>
+</html>
 `)
+		_ = tmpl.Execute(&b, map[string]any{
+			"JobRuns": jobRuns,
+			"Entries": entries,
+		})
 		_, _ = w.Write(b.Bytes())
 	}
 }
@@ -200,43 +213,44 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		jobRuns := c.RunningJobsFor(entryID)
 		completedJobRuns := c.CompletedJobRunsFor(entryID)
-		b.WriteString(css + `
+		tmpl, _ := template.New("").Funcs(funcsMap).Parse(`
+<!doctype html>
+<html>
+<head>
+	` + css + `
+</head>
+<body>
 ` + getMenu() + `
-<h1>` + string(entry.ID) + `</h1>
-<div>Label: ` + entry.Label + `</div>
-<div>Active: ` + utils.Ternary(entry.Active, `<span class="success">T</span>`, `<span class="danger">F</span>`) + `</div>
+<h1>{{ .Entry.ID }}</h1>
+<div>Label: {{ .Entry.Label }}</div>
+<div>Active: {{ if .Entry.Active }}<span class="success">T</span>{{ else }}<span class="danger">F</span>{{ end }}</div>
 <hr />
 <div class="mb-1">
-`)
-		if entry.Active {
-			b.WriteString(`
+{{ if .Entry.Active }}
 		<form method="POST" class="d-inline-block">
 			<input type="hidden" name="formName" value="disableEntry" />
-			<input type="hidden" name="entryID" value="` + string(entry.ID) + `" />
+			<input type="hidden" name="entryID" value="{{ .Entry.ID }}" />
 			<input type="submit" value="Disable" />
 		</form>
-`)
-		} else {
-			b.WriteString(`
+{{ else }}
 		<form method="POST" class="d-inline-block">
 			<input type="hidden" name="formName" value="enableEntry" />
-			<input type="hidden" name="entryID" value="` + string(entry.ID) + `" />
+			<input type="hidden" name="entryID" value="{{ .Entry.ID }}" />
 			<input type="submit" value="Enable" />
 		</form>
-`)
-		}
-		b.WriteString(`
+{{ end }}
 </div>
+
 <div>
 	<label for="label">Job label:</label>
 	<form method="POST">
 		<input type="hidden" name="formName" value="updateLabel" />
-		<input type="text" name="label" value="` + entry.Label + `" placeholder="Label" />
+		<input type="text" name="label" value="{{ .Entry.Label }}" placeholder="Label" />
 		<input type="submit" value="Update label" id="label" />
 	</form>
 </div>
 <hr />
-Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
+Running jobs ({{ len .JobRuns }})<br />
 <table class="mb-1">
 	<thead>
 		<th>Entry ID</th>
@@ -246,29 +260,26 @@ Running jobs (` + strconv.Itoa(len(jobRuns)) + `)<br />
 		<th>Actions</th>
 	</thead>
 	<tbody>
-`)
-		for _, jobRun := range jobRuns {
-			b.WriteString(`
-	<tr>
-		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `">` + string(jobRun.Entry.ID) + `</a></span></td>
-		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `/runs/` + string(jobRun.RunID) + `">` + string(jobRun.RunID) + `</a></span></td>
-		<td>` + jobRun.Entry.Label + `</td>
-		<td>` + jobRun.StartedAt.Format(time.DateTime) + `</td>
-		<td>
-			<form method="POST" class="d-inline-block">
-				<input type="hidden" name="formName" value="cancelRun" />
-				<input type="hidden" name="entryID" value="` + string(jobRun.Entry.ID) + `" />
-				<input type="hidden" name="runID" value="` + string(jobRun.RunID) + `" />
-				<input type="submit" value="Cancel" />
-			</form>
-		</td>
-	</tr>`)
-		}
-		b.WriteString(`
+		{{ range .JobRuns }}
+			<tr>
+				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}">{{ .Entry.ID }}</a></span></td>
+				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}/runs/{{ .RunID }}">{{ .RunID }}</a></span></td>
+				<td>{{ .Entry.Label }}</td>
+				<td>{{ .StartedAt | FmtDate }}</td>
+				<td>
+					<form method="POST" class="d-inline-block">
+						<input type="hidden" name="formName" value="cancelRun" />
+						<input type="hidden" name="entryID" value="{{ .Entry.ID }}" />
+						<input type="hidden" name="runID" value="{{ .RunID }}" />
+						<input type="submit" value="Cancel" />
+					</form>
+				</td>
+			</tr>
+		{{ end }}
 	</tbody>
 </table>
 
-Completed jobs (` + strconv.Itoa(len(completedJobRuns)) + `)<br />
+Completed jobs ({{ len .CompletedJobRuns }})<br />
 <table class="mb-1">
 	<thead>
 		<th>Entry ID</th>
@@ -280,37 +291,40 @@ Completed jobs (` + strconv.Itoa(len(completedJobRuns)) + `)<br />
 		<th>Panic</th>
 	</thead>
 	<tbody>
-`)
-		for _, jobRun := range completedJobRuns {
-			b.WriteString(`
-	<tr>
-		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `">` + string(jobRun.Entry.ID) + `</a></span></td>
-		<td><span class="monospace"><a href="/entries/` + string(jobRun.Entry.ID) + `/runs/` + string(jobRun.RunID) + `">` + string(jobRun.RunID) + `</a></span></td>
-		<td>` + jobRun.Entry.Label + `</td>
-		<td>` + jobRun.StartedAt.Format(time.DateTime) + `</td>
-		<td>` + jobRun.CompletedAt.Format(time.DateTime) + `</td>
-		<td>`)
-			if jobRun.Error != nil {
-				b.WriteString(`<span class="danger" title="` + jobRun.Error.Error() + `">Error</span>`)
-			} else {
-				b.WriteString(`<span>-</span>`)
-			}
-			b.WriteString(`
-		</td>
-		<td>`)
-			if jobRun.Panic {
-				b.WriteString(`<span class="danger">Panic</span>`)
-			} else {
-				b.WriteString(`<span>-</span>`)
-			}
-			b.WriteString(`
-		</td>
-	</tr>`)
-		}
-		b.WriteString(`
+		{{ range .CompletedJobRuns }}
+			<tr>
+				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}">{{ .Entry.ID }}</a></span></td>
+				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}/runs/{{ .RunID }}">{{ .RunID }}</a></span></td>
+				<td>{{ .Entry.Label }}</td>
+				<td>{{ .StartedAt | FmtDate }}</td>
+				<td>{{ .CompletedAt | FmtDate }}</td>
+				<td>
+					{{ if .Error }}
+						<span class="danger" title="{{ .Error.Error }}">Error</span>
+					{{ else }}
+						<span>-</span>
+					{{ end }}
+				</td>
+				<td>
+					{{ if .Panic }}
+						<span class="danger">Panic</span>
+					{{ else }}
+						<span>-</span>
+					{{ end }}
+				</td>
+			</tr>
+		{{ end }}
 	</tbody>
 </table>
+
+</body>
+</html>
 `)
+		_ = tmpl.Execute(&b, map[string]any{
+			"Entry":            entry,
+			"JobRuns":          jobRuns,
+			"CompletedJobRuns": completedJobRuns,
+		})
 		_, _ = w.Write(b.Bytes())
 	}
 }
@@ -363,16 +377,22 @@ func getRunHandler(c *cron.Cron) http.HandlerFunc {
 		var b bytes.Buffer
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
-		b.WriteString(css + `
+		tmpl, _ := template.New("").Funcs(funcsMap).Parse(`
+<!doctype html>
+<html>
+<head>
+	` + css + `
+</head>
+<body>
 ` + getMenu() + `
-<h1>Run: ` + string(jobRun.RunID) + `</h1>
+<h1>Run: {{ .JobRun.RunID }}</h1>
 <div class="mb-1">
-	Entry: <span class="monospace"><a href="/entries/` + string(entry.ID) + `">` + string(entry.ID) + `</a></span><br />
+	Entry: <span class="monospace"><a href="/entries/{{ .Entry.ID }}">{{ .Entry.ID }}</a></span><br />
 </div>
 <form method="POST">
 	<input type="hidden" name="formName" value="cancelRun" />
-	<input type="hidden" name="entryID" value="` + string(jobRun.Entry.ID) + `" />
-	<input type="hidden" name="runID" value="` + string(jobRun.RunID) + `" />
+	<input type="hidden" name="entryID" value="{{ .JobRun.Entry.ID }}" />
+	<input type="hidden" name="runID" value="{{ .JobRun.RunID }}" />
 	<input type="submit" value="Cancel" />
 </form>
 <hr />
@@ -382,16 +402,18 @@ Events:<br />
 		<tr><th>Type</th><th>Created at</th></tr>
 	</thead>
 	<tbody>
-`)
-		for _, evt := range jobRun.Events {
-			b.WriteString(`
-	<tr><td>` + evt.Typ.String() + `</td><td>` + evt.CreatedAt.Format(time.DateTime) + `</td></tr>
-`)
-		}
-		b.WriteString(`
+		{{ range .JobRun.Events }}
+			<tr><td>{{ .Typ }}</td><td>{{ .CreatedAt | FmtDate }}</td></tr>
+		{{ end }}
 	</tbody>
 </table>
+</body>
+</html>
 `)
+		_ = tmpl.Execute(&b, map[string]any{
+			"JobRun": jobRun,
+			"Entry":  entry,
+		})
 		_, _ = w.Write(b.Bytes())
 	}
 }

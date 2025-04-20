@@ -508,16 +508,14 @@ func getRunHandler(c *cron.Cron) http.HandlerFunc {
 	<tr><td>Label:</td><td>{{ if .Entry.ID }}{{ .Entry.Label }}{{ else }}-{{ end }}</td></tr>
 	<tr><td>Spec:</td><td>{{ if .Entry.Spec }}{{ .Entry.Spec }}{{ else }}-{{ end }}</td></tr>
 </table>
-{{ if not .JobRun.CompletedAt }}
-	<div class="mb-1">
-		<form method="POST">
-			<input type="hidden" name="formName" value="cancelRun" />
-			<input type="hidden" name="entryID" value="{{ .JobRun.Entry.ID }}" />
-			<input type="hidden" name="runID" value="{{ .JobRun.RunID }}" />
-			<input type="submit" value="Cancel" />
-		</form>
-	</div>
-{{ end }}
+<div class="mb-1">
+	<form method="POST">
+		<input type="hidden" name="formName" value="cancelRun" />
+		<input type="hidden" name="entryID" value="{{ .JobRun.Entry.ID }}" />
+		<input type="hidden" name="runID" value="{{ .JobRun.RunID }}" />
+		<input type="submit" value="Cancel"{{ if .JobRun.CompletedAt }} disabled{{ end }} />
+	</form>
+</div>
 <hr />
 Events ({{ len .JobRun.Events }})<br />
 <table>

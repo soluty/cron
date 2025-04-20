@@ -632,6 +632,8 @@ func TestWithID(t *testing.T) {
 	assert.NoError(t, err)
 	_, err = cron.AddJob("* * * * * *", func() {}, WithID("some_id"))
 	assert.ErrorIs(t, err, ErrIDAlreadyUsed)
+	_, err = cron.AddJob("* * * * * *", func() {}, WithID(""))
+	assert.ErrorContains(t, err, "id cannot be empty")
 }
 
 func TestNextIDIsThreadSafe(t *testing.T) {
@@ -993,6 +995,18 @@ func TestUpdateSchedule(t *testing.T) {
 	advanceAndCycle(cron, time.Second)
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(2), calls.Load())
+}
+
+func TestUpdateLabel(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
+	cron := New(WithClock(clock), WithParser(secondParser))
+	id, _ := cron.AddJob("0 0 1 * * *", func() {}, Label("original"))
+	cron.Start()
+	entry, _ := cron.getEntry(id)
+	assert.Equal(t, "original", entry.Label)
+	cron.UpdateLabel(id, "updated")
+	entry, _ = cron.getEntry(id)
+	assert.Equal(t, "updated", entry.Label)
 }
 
 func TestDisabledIgnoredByGetNextTime(t *testing.T) {

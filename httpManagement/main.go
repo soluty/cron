@@ -211,8 +211,8 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 		var b bytes.Buffer
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
-		jobRuns := c.RunningJobsFor(entryID)
-		completedJobRuns := c.CompletedJobRunsFor(entryID)
+		jobRuns, _ := c.RunningJobsFor(entryID)
+		completedJobRuns, _ := c.CompletedJobRunsFor(entryID)
 		tmpl, _ := template.New("").Funcs(funcsMap).Parse(`
 <!doctype html>
 <html>

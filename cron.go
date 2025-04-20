@@ -273,10 +273,12 @@ func (c *Cron) IsRunning(id EntryID) bool { return c.entryIsRunning(id) }
 func (c *Cron) RunningJobs() []JobRunPublic { return c.runningJobs() }
 
 // RunningJobsFor ...
-func (c *Cron) RunningJobsFor(entryID EntryID) []JobRunPublic { return c.runningJobsFor(entryID) }
+func (c *Cron) RunningJobsFor(entryID EntryID) ([]JobRunPublic, error) {
+	return c.runningJobsFor(entryID)
+}
 
 // CompletedJobRunsFor ...
-func (c *Cron) CompletedJobRunsFor(entryID EntryID) []JobRunPublic {
+func (c *Cron) CompletedJobRunsFor(entryID EntryID) ([]JobRunPublic, error) {
 	return c.completedJobRunsFor(entryID)
 }
 
@@ -675,21 +677,25 @@ func (c *Cron) runningJobs() (out []JobRunPublic) {
 	return
 }
 
-func (c *Cron) runningJobsFor(entryID EntryID) (out []JobRunPublic) {
+func (c *Cron) runningJobsFor(entryID EntryID) (out []JobRunPublic, err error) {
 	if jobRuns, ok := c.runningJobsMap.Load(entryID); ok {
 		jobRuns.RWith(func(v jobRunsInner) {
 			out = exportJobRuns(v.running)
 		})
+	} else {
+		return nil, ErrEntryNotFound
 	}
 	sortJobRunsPublic(out)
 	return
 }
 
-func (c *Cron) completedJobRunsFor(entryID EntryID) (out []JobRunPublic) {
+func (c *Cron) completedJobRunsFor(entryID EntryID) (out []JobRunPublic, err error) {
 	if jobRuns, ok := c.runningJobsMap.Load(entryID); ok {
 		jobRuns.RWith(func(v jobRunsInner) {
 			out = exportJobRuns(v.completed)
 		})
+	} else {
+		return nil, ErrEntryNotFound
 	}
 	sortJobRunsPublic(out)
 	return

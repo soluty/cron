@@ -389,12 +389,14 @@ func getRunHandler(c *cron.Cron) http.HandlerFunc {
 <div class="mb-1">
 	Entry: <span class="monospace"><a href="/entries/{{ .Entry.ID }}">{{ .Entry.ID }}</a></span><br />
 </div>
-<form method="POST">
-	<input type="hidden" name="formName" value="cancelRun" />
-	<input type="hidden" name="entryID" value="{{ .JobRun.Entry.ID }}" />
-	<input type="hidden" name="runID" value="{{ .JobRun.RunID }}" />
-	<input type="submit" value="Cancel" />
-</form>
+{{ if not .JobRun.CompletedAt }}
+	<form method="POST">
+		<input type="hidden" name="formName" value="cancelRun" />
+		<input type="hidden" name="entryID" value="{{ .JobRun.Entry.ID }}" />
+		<input type="hidden" name="runID" value="{{ .JobRun.RunID }}" />
+		<input type="submit" value="Cancel" />
+	</form>
+{{ end }}
 <hr />
 Events:<br />
 <table>

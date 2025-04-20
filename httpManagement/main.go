@@ -136,6 +136,7 @@ aside,
 	.success { color: #0f0; }
 	.danger { color: #f00; }
 	.mb-1 { margin-bottom: 10px; }
+	small { color: #666; }
 </style>
 `
 

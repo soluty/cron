@@ -137,6 +137,7 @@ aside,
 	.danger { color: #f00; }
 	.mb-1 { margin-bottom: 10px; }
 	small { color: #666; }
+	.text-center { text-align: center; }
 </style>
 `
 
@@ -227,7 +228,7 @@ Entries ({{ len .Entries }})<br />
 				<td>{{ if .Spec }}{{ .Spec }}{{ else }}-{{ end }}</td>
 				<td>{{ .Prev | FmtDate }}</td>
 				<td>{{ .Next | FmtDate }}{{ if not .Next.IsZero }} <small>({{ .Next | ShortDur }})</small>{{ end }}</td>
-				<td>
+				<td class="text-center">
 					{{ if .Active }}
 						<span class="success">T</span>
 					{{ else }}

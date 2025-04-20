@@ -212,6 +212,7 @@ Entries ({{ len .Entries }})<br />
 		<tr>
 			<th>Entry ID</th>
 			<th>Label</th>
+			<th>Spec</th>
 			<th>Prev</th>
 			<th>Next</th>
 			<th>Active</th>
@@ -223,6 +224,7 @@ Entries ({{ len .Entries }})<br />
 			<tr>
 				<td><span class="monospace"><a href="/entries/{{ .ID }}">{{ .ID }}</a></span></td>
 				<td>{{ if .Label }}{{ .Label }}{{ else }}-{{ end }}</td>
+				<td>{{ if .Spec }}{{ .Spec }}{{ else }}-{{ end }}</td>
 				<td>{{ .Prev | FmtDate }}</td>
 				<td>{{ .Next | FmtDate }}{{ if not .Next.IsZero }} <small>({{ .Next | ShortDur }})</small>{{ end }}</td>
 				<td>
@@ -259,7 +261,7 @@ Entries ({{ len .Entries }})<br />
 				</td>
 			</tr>
 		{{ else }}
-			<tr><td colspan="6"><em>No entries</em></td></tr>
+			<tr><td colspan="7"><em>No entries</em></td></tr>
 		{{ end }}
 	</tbody>
 </table>

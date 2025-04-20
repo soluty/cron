@@ -419,6 +419,9 @@ func (c *Cron) addEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
 	if entry.ID == zeroID {
 		return zeroID, errors.New("id cannot be empty")
 	}
+	if !entry.Active {
+		entry.Next = time.Time{}
+	}
 	if c.entryExists(entry.ID) {
 		var zeroID EntryID
 		return zeroID, ErrIDAlreadyUsed
@@ -446,7 +449,7 @@ func (c *Cron) setEntryActive(id EntryID, active bool) {
 			return errors.New("not found or unchanged")
 		}
 		(*entry).Active = active
-		(*entry).Next = (*entry).Schedule.Next(c.now())
+		(*entry).Next = utils.TernaryOrZero(active, (*entry).Schedule.Next(c.now()))
 		reInsertEntry(&entries.entriesHeap, idx) // setEntryActive
 		return nil
 	}); err != nil {
@@ -471,7 +474,7 @@ func (c *Cron) updateSchedule(id EntryID, spec *string, schedule Schedule) error
 		}
 		(*entry).Spec = spec
 		(*entry).Schedule = schedule
-		(*entry).Next = schedule.Next(c.now())
+		(*entry).Next = utils.TernaryOrZero((*entry).Active, schedule.Next(c.now()))
 		reInsertEntry(&entries.entriesHeap, idx) // updateSchedule
 		return nil
 	}); err != nil {
@@ -571,7 +574,7 @@ func (c *Cron) setEntriesNext() {
 	now := c.now()
 	c.entries.With(func(entries *Entries) {
 		for _, entry := range (*entries).entriesHeap {
-			entry.Next = entry.Schedule.Next(now)
+			entry.Next = utils.TernaryOrZero(entry.Active, entry.Schedule.Next(now))
 		}
 		c.sortEntries(&entries.entriesHeap) // setEntriesNext
 	})

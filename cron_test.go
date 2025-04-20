@@ -1105,15 +1105,14 @@ func TestEvents(t *testing.T) {
 			cond.L.Unlock()
 		}
 	}()
-	go func() {
-		advanceAndCycleNoWait(cron, time.Second)    // after 1s, job starts
-		<-c1                                        // wait until the job is sleeping  before advancing clock
-		advanceAndCycleNoWait(cron, time.Minute)    // after 1m another job starts but is skipped
-		<-onErrCh                                   // Wait until we receive the failed event before advancing clock
-		advanceAndCycleNoWait(cron, time.Minute)    // after 2m another job starts but is skipped
-		<-onErrCh                                   // Wait until we receive the failed event before advancing clock
-		advanceAndCycleNoWait(cron, 30*time.Second) // after 2m30s job is completed
-	}()
+
+	advanceAndCycleNoWait(cron, time.Second)    // after 1s, job starts
+	<-c1                                        // wait until the job is sleeping  before advancing clock
+	advanceAndCycleNoWait(cron, time.Minute)    // after 1m another job starts but is skipped
+	<-onErrCh                                   // Wait until we receive the failed event before advancing clock
+	advanceAndCycleNoWait(cron, time.Minute)    // after 2m another job starts but is skipped
+	<-onErrCh                                   // Wait until we receive the failed event before advancing clock
+	advanceAndCycleNoWait(cron, 30*time.Second) // after 2m30s job is completed
 
 	// Wait until we receive all events (1 completed, 2 failed)
 	cond.L.Lock()

@@ -42,16 +42,16 @@ type Cron struct {
 	parser               ScheduleParser                               // Parses cron expressions into schedule objects
 	idFactory            EntryIDFactory                               // Generates a new unique EntryID for each scheduled job
 	ps                   *pubsub.PubSub[EntryID, JobEvent]            //
-	jobRunCreatedCh      chan *JobRun                                 //
-	jobRunCompletedCh    chan *JobRun                                 //
+	jobRunCreatedCh      chan *jobRunStruct                           //
+	jobRunCompletedCh    chan *jobRunStruct                           //
 	keepCompletedRunsDur mtx.Mtx[time.Duration]                       //
 	lastCleanupTS        mtx.Mtx[time.Time]                           //
 }
 
 type jobRunsInner struct {
-	mapping   map[RunID]*JobRun
-	running   []*JobRun
-	completed []*JobRun
+	mapping   map[RunID]*jobRunStruct
+	running   []*jobRunStruct
+	completed []*jobRunStruct
 }
 
 type JobEventType int
@@ -83,11 +83,11 @@ func (e JobEventType) String() string {
 
 type JobEvent struct {
 	Typ       JobEventType
-	JobRun    JobRunPublic
+	JobRun    JobRun
 	CreatedAt time.Time
 }
 
-func NewJobEvent(typ JobEventType, jobRun *JobRun) JobEvent {
+func NewJobEvent(typ JobEventType, jobRun *jobRunStruct) JobEvent {
 	return JobEvent{
 		Typ:       typ,
 		JobRun:    jobRun.Export(),
@@ -181,8 +181,8 @@ func New(opts ...Option) *Cron {
 		parser:               parser,
 		idFactory:            idFactory,
 		ps:                   pubsub.NewPubSub[EntryID, JobEvent](),
-		jobRunCreatedCh:      make(chan *JobRun),
-		jobRunCompletedCh:    make(chan *JobRun),
+		jobRunCreatedCh:      make(chan *jobRunStruct),
+		jobRunCompletedCh:    make(chan *jobRunStruct),
 		keepCompletedRunsDur: mtx.NewMtx(keepCompletedRunsDur),
 		entries: mtx.NewRWMtx(Entries{
 			entriesHeap: make(EntryHeap, 0),
@@ -244,10 +244,10 @@ func (c *Cron) Sub(id EntryID) *pubsub.Sub[EntryID, JobEvent] {
 }
 
 // JobRunCreatedCh ...
-func (c *Cron) JobRunCreatedCh() <-chan *JobRun { return c.jobRunCreatedCh }
+func (c *Cron) JobRunCreatedCh() <-chan *jobRunStruct { return c.jobRunCreatedCh }
 
 // JobRunCompletedCh ...
-func (c *Cron) JobRunCompletedCh() <-chan *JobRun { return c.jobRunCompletedCh }
+func (c *Cron) JobRunCompletedCh() <-chan *jobRunStruct { return c.jobRunCompletedCh }
 
 // Enable ...
 func (c *Cron) Enable(id EntryID) { c.setEntryActive(id, true) }
@@ -271,20 +271,20 @@ func (c *Cron) RunNow(id EntryID) error { return c.runNow(id) }
 func (c *Cron) IsRunning(id EntryID) bool { return c.entryIsRunning(id) }
 
 // RunningJobs ...
-func (c *Cron) RunningJobs() []JobRunPublic { return c.runningJobs() }
+func (c *Cron) RunningJobs() []JobRun { return c.runningJobs() }
 
 // RunningJobsFor ...
-func (c *Cron) RunningJobsFor(entryID EntryID) ([]JobRunPublic, error) {
+func (c *Cron) RunningJobsFor(entryID EntryID) ([]JobRun, error) {
 	return c.runningJobsFor(entryID)
 }
 
 // CompletedJobRunsFor ...
-func (c *Cron) CompletedJobRunsFor(entryID EntryID) ([]JobRunPublic, error) {
+func (c *Cron) CompletedJobRunsFor(entryID EntryID) ([]JobRun, error) {
 	return c.completedJobRunsFor(entryID)
 }
 
 // GetRun ...
-func (c *Cron) GetRun(entryID EntryID, runID RunID) (JobRunPublic, error) {
+func (c *Cron) GetRun(entryID EntryID, runID RunID) (JobRun, error) {
 	return c.getRun(entryID, runID)
 }
 
@@ -322,8 +322,8 @@ func startCleanupThread(c *Cron) {
 					for i := len(inner.completed) - 1; i >= 0; i-- {
 						now := c.clock.Now()
 						el := inner.completed[i]
-						if el.inner.Get().CompletedAt.Before(now.Add(-keepCompletedRunsDur)) {
-							delete(inner.mapping, el.RunID)
+						if el.inner.Get().completedAt.Before(now.Add(-keepCompletedRunsDur)) {
+							delete(inner.mapping, el.runID)
 							inner.completed = slices.Delete(inner.completed, i, i+1)
 						}
 					}
@@ -652,7 +652,7 @@ func (c *Cron) entryIsRunning(id EntryID) bool {
 	return count > 0
 }
 
-func (c *Cron) getRunClb(entryID EntryID, runID RunID, clb func(*JobRun)) error {
+func (c *Cron) getRunClb(entryID EntryID, runID RunID, clb func(*jobRunStruct)) error {
 	if jobRunsInnerMtx, ok := c.runningJobsMap.Load(entryID); ok {
 		if err := jobRunsInnerMtx.RWithE(func(jobRunsIn jobRunsInner) error {
 			if run, ok := jobRunsIn.mapping[runID]; ok {
@@ -668,21 +668,21 @@ func (c *Cron) getRunClb(entryID EntryID, runID RunID, clb func(*JobRun)) error 
 	return ErrRunNotFound
 }
 
-func (c *Cron) getRun(entryID EntryID, runID RunID) (JobRunPublic, error) {
-	var jobRunPub JobRunPublic
-	err := c.getRunClb(entryID, runID, func(run *JobRun) {
+func (c *Cron) getRun(entryID EntryID, runID RunID) (JobRun, error) {
+	var jobRunPub JobRun
+	err := c.getRunClb(entryID, runID, func(run *jobRunStruct) {
 		jobRunPub = run.Export()
 	})
 	return jobRunPub, err
 }
 
 func (c *Cron) cancelRun(entryID EntryID, runID RunID) error {
-	return c.getRunClb(entryID, runID, func(run *JobRun) {
+	return c.getRunClb(entryID, runID, func(run *jobRunStruct) {
 		(*run).cancel()
 	})
 }
 
-func (c *Cron) runningJobs() (out []JobRunPublic) {
+func (c *Cron) runningJobs() (out []JobRun) {
 	for jobRuns := range c.runningJobsMap.IterValues() {
 		jobRuns.RWith(func(v jobRunsInner) {
 			out = append(out, exportJobRuns(v.running)...)
@@ -692,7 +692,7 @@ func (c *Cron) runningJobs() (out []JobRunPublic) {
 	return
 }
 
-func (c *Cron) jobRunsForWith(entryID EntryID, clb func(jobRunsInner) []*JobRun) (out []JobRunPublic, err error) {
+func (c *Cron) jobRunsForWith(entryID EntryID, clb func(jobRunsInner) []*jobRunStruct) (out []JobRun, err error) {
 	if jobRuns, ok := c.runningJobsMap.Load(entryID); ok {
 		jobRuns.RWith(func(v jobRunsInner) {
 			out = exportJobRuns(clb(v))
@@ -703,22 +703,22 @@ func (c *Cron) jobRunsForWith(entryID EntryID, clb func(jobRunsInner) []*JobRun)
 	return nil, ErrEntryNotFound
 }
 
-func (c *Cron) runningJobsFor(entryID EntryID) (out []JobRunPublic, err error) {
-	return c.jobRunsForWith(entryID, func(v jobRunsInner) []*JobRun { return v.running })
+func (c *Cron) runningJobsFor(entryID EntryID) (out []JobRun, err error) {
+	return c.jobRunsForWith(entryID, func(v jobRunsInner) []*jobRunStruct { return v.running })
 }
 
-func (c *Cron) completedJobRunsFor(entryID EntryID) (out []JobRunPublic, err error) {
-	return c.jobRunsForWith(entryID, func(v jobRunsInner) []*JobRun { return v.completed })
+func (c *Cron) completedJobRunsFor(entryID EntryID) (out []JobRun, err error) {
+	return c.jobRunsForWith(entryID, func(v jobRunsInner) []*jobRunStruct { return v.completed })
 }
 
-func exportJobRuns(runs []*JobRun) (out []JobRunPublic) {
+func exportJobRuns(runs []*jobRunStruct) (out []JobRun) {
 	for _, j := range runs {
 		out = append(out, j.Export())
 	}
 	return
 }
 
-func sortJobRunsPublic(runs []JobRunPublic) {
+func sortJobRunsPublic(runs []JobRun) {
 	sort.Slice(runs, func(i, j int) bool {
 		return runs[i].CreatedAt.Before(runs[j].CreatedAt)
 	})
@@ -728,14 +728,14 @@ func (c *Cron) entryExists(id EntryID) bool {
 	return utils.Second(c.getEntry(id)) == nil
 }
 
-func (c *Cron) updateJobsCounter(key EntryID, jobRun *JobRun, delta int32) {
+func (c *Cron) updateJobsCounter(key EntryID, jobRun *jobRunStruct, delta int32) {
 	jobRuns, _ := c.runningJobsMap.LoadOrStore(key, utils.Ptr(mtx.NewRWMtx(jobRunsInner{
-		mapping: make(map[RunID]*JobRun),
+		mapping: make(map[RunID]*jobRunStruct),
 	})))
 	if delta == 1 {
 		utils.NonBlockingSend(c.jobRunCreatedCh, jobRun)
 		jobRuns.With(func(v *jobRunsInner) {
-			(*v).mapping[jobRun.RunID] = jobRun
+			(*v).mapping[jobRun.runID] = jobRun
 			(*v).running = append((*v).running, jobRun)
 		})
 	} else {
@@ -746,7 +746,7 @@ func (c *Cron) updateJobsCounter(key EntryID, jobRun *JobRun, delta int32) {
 				if c.keepCompletedRunsDur.Get() > 0 {
 					(*v).completed = append((*v).completed, jobRun)
 				} else {
-					delete((*v).mapping, jobRun.RunID)
+					delete((*v).mapping, jobRun.runID)
 				}
 			}
 		})
@@ -756,45 +756,43 @@ func (c *Cron) updateJobsCounter(key EntryID, jobRun *JobRun, delta int32) {
 // RunID ...
 type RunID string
 
-type JobRun struct {
-	RunID     RunID
-	Entry     Entry
+type jobRunStruct struct {
+	runID     RunID
+	entry     Entry
 	clock     clockwork.Clock
 	inner     mtx.RWMtx[jobRunInner]
-	CreatedAt time.Time
+	createdAt time.Time
 	ctx       context.Context
 	cancel    context.CancelFunc
 }
 
 type jobRunInner struct {
-	StartedAt   *time.Time
-	CompletedAt *time.Time
+	startedAt   *time.Time
+	completedAt *time.Time
 	events      []JobEvent
-	Error       error
-	Cancelled   bool
-	Panic       bool
+	error       error
+	panic       bool
 }
 
 func (j *jobRunInner) addEvent(evt JobEvent) {
 	j.events = append(j.events, evt)
 }
 
-func (j *JobRun) Export() JobRunPublic {
+func (j *jobRunStruct) Export() JobRun {
 	innerCopy := j.inner.Get()
-	return JobRunPublic{
-		RunID:       j.RunID,
-		Entry:       j.Entry,
-		CreatedAt:   j.CreatedAt,
+	return JobRun{
+		RunID:       j.runID,
+		Entry:       j.entry,
+		CreatedAt:   j.createdAt,
 		Events:      innerCopy.events,
-		StartedAt:   innerCopy.StartedAt,
-		CompletedAt: innerCopy.CompletedAt,
-		Error:       innerCopy.Error,
-		Cancelled:   innerCopy.Cancelled,
-		Panic:       innerCopy.Panic,
+		StartedAt:   innerCopy.startedAt,
+		CompletedAt: innerCopy.completedAt,
+		Error:       innerCopy.error,
+		Panic:       innerCopy.panic,
 	}
 }
 
-type JobRunPublic struct {
+type JobRun struct {
 	RunID       RunID
 	Entry       Entry
 	CreatedAt   time.Time
@@ -802,17 +800,16 @@ type JobRunPublic struct {
 	CompletedAt *time.Time
 	Events      []JobEvent
 	Error       error
-	Cancelled   bool
 	Panic       bool
 }
 
-func NewJobRun(ctx context.Context, clock clockwork.Clock, entry Entry) *JobRun {
+func newJobRun(ctx context.Context, clock clockwork.Clock, entry Entry) *jobRunStruct {
 	ctx, cancel := context.WithCancel(ctx)
-	return &JobRun{
-		RunID:     RunID(uuidV4()),
-		Entry:     entry,
+	return &jobRunStruct{
+		runID:     RunID(uuidV4()),
+		entry:     entry,
 		clock:     clock,
-		CreatedAt: clock.Now(),
+		createdAt: clock.Now(),
 		ctx:       ctx,
 		cancel:    cancel,
 	}
@@ -820,7 +817,7 @@ func NewJobRun(ctx context.Context, clock clockwork.Clock, entry Entry) *JobRun 
 
 // startJob runs the given job in a new goroutine.
 func (c *Cron) startJob(entry Entry) {
-	jobRun := NewJobRun(c.ctx, c.clock, entry)
+	jobRun := newJobRun(c.ctx, c.clock, entry)
 	c.runningJobsCount.Add(1)
 	go func() {
 		defer func() {
@@ -833,8 +830,8 @@ func (c *Cron) startJob(entry Entry) {
 	}()
 }
 
-func (c *Cron) runWithRecovery(jobRun *JobRun) {
-	entry := jobRun.Entry
+func (c *Cron) runWithRecovery(jobRun *jobRunStruct) {
+	entry := jobRun.entry
 	logger := c.logger
 	defer func() {
 		if r := recover(); r != nil {
@@ -855,22 +852,22 @@ func (c *Cron) runWithRecovery(jobRun *JobRun) {
 	}
 }
 
-func makeEvent(c *Cron, entry Entry, jobRun *JobRun, typ JobEventType) {
+func makeEvent(c *Cron, entry Entry, jobRun *jobRunStruct, typ JobEventType) {
 	makeEventErr(c, entry, jobRun, typ, nil)
 }
 
-func makeEventErr(c *Cron, entry Entry, jobRun *JobRun, typ JobEventType, err error) {
+func makeEventErr(c *Cron, entry Entry, jobRun *jobRunStruct, typ JobEventType, err error) {
 	now := c.clock.Now()
 	var opt func(*jobRunInner)
 	switch typ {
 	case Start:
-		opt = func(inner *jobRunInner) { (*inner).StartedAt = utils.Ptr(now) }
+		opt = func(inner *jobRunInner) { (*inner).startedAt = utils.Ptr(now) }
 	case Completed:
-		opt = func(inner *jobRunInner) { (*inner).CompletedAt = utils.Ptr(now) }
+		opt = func(inner *jobRunInner) { (*inner).completedAt = utils.Ptr(now) }
 	case CompletedPanic:
-		opt = func(inner *jobRunInner) { (*inner).Panic = true }
+		opt = func(inner *jobRunInner) { (*inner).panic = true }
 	case CompletedErr:
-		opt = func(inner *jobRunInner) { (*inner).Error = err }
+		opt = func(inner *jobRunInner) { (*inner).error = err }
 	case CompletedNoErr:
 		opt = func(inner *jobRunInner) {}
 	}

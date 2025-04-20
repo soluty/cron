@@ -47,11 +47,11 @@ func Second[T any](_ any, a T, _ ...any) T { return a }
 // BuildConfig ...
 func BuildConfig[C any, F ~func(*C)](opts []F) *C {
 	var cfg C
-	return ApplyOptions(&cfg, opts)
+	return ApplyOptions(&cfg, opts...)
 }
 
 // ApplyOptions ...
-func ApplyOptions[C any, F ~func(*C)](cfg *C, opts []F) *C {
+func ApplyOptions[C any, F ~func(*C)](cfg *C, opts ...F) *C {
 	for _, opt := range opts {
 		opt(cfg)
 	}

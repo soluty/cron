@@ -111,7 +111,7 @@ func TestApplyOptions(t *testing.T) {
 	Opt1 := func(c *Config) { c.A = "hello" }
 	Opt2 := func(c *Config) { c.B = "world" }
 	c := &Config{}
-	ApplyOptions(c, []func(*Config){Opt1, Opt2})
+	ApplyOptions(c, Opt1, Opt2)
 	assert.Equal(t, &Config{A: "hello", B: "world"}, c)
 }
 

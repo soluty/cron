@@ -877,17 +877,12 @@ func makeEventErr(c *Cron, entry Entry, jobRun *JobRun, typ JobEventType, err er
 	case CompletedNoErr:
 		opt = func(inner *jobRunInner) {}
 	}
-	evt := makeEvent1(jobRun, typ, opt)
-	c.ps.Pub(entry.ID, evt)
-}
-
-func makeEvent1(jobRun *JobRun, typ JobEventType, opts ...func(*jobRunInner)) JobEvent {
 	evt := NewJobEvent(typ, jobRun)
 	jobRun.inner.With(func(inner *jobRunInner) {
-		utils.ApplyOptions(inner, opts)
+		utils.ApplyOptions(inner, opt)
 		inner.addEvent(evt)
 	})
-	return evt
+	c.ps.Pub(entry.ID, evt)
 }
 
 func (c *Cron) signalJobCompleted() {

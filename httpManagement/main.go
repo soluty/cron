@@ -21,11 +21,105 @@ func GetMux(c *cron.Cron) *http.ServeMux {
 
 var css = `
 <style>
-	html {
-		background-color: #222;
-		color: #eee;
-		font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+* {
+	-webkit-box-sizing: border-box;
+	box-sizing: border-box;
+}
+
+body {
+	color-scheme: light dark;
+	font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+	line-height: 1.75em;
+	font-size: 16px;
+	background-color: #222;
+	color: #aaa;
+}
+
+.simple-container {
+	max-width: 675px;
+	margin: 0 auto;
+	padding-top: 70px;
+	padding-bottom: 20px;
+}
+
+.simple-print {
+	fill: white;
+	stroke: white;
+}
+.simple-print svg {
+	height: 100%;
+}
+
+.simple-close {
+	color: white;
+	border-color: white;
+}
+
+.simple-ext-info {
+	border-top: 1px solid #aaa;
+}
+
+p {
+	font-size: 16px;
+}
+
+h1 {
+	font-size: 30px;
+	line-height: 34px;
+}
+
+h2 {
+	font-size: 20px;
+	line-height: 25px;
+}
+
+h3 {
+	font-size: 16px;
+	line-height: 27px;
+	padding-top: 15px;
+	padding-bottom: 15px;
+	border-bottom: 1px solid #D8D8D8;
+	border-top: 1px solid #D8D8D8;
+}
+
+hr {
+	height: 1px;
+	background-color: #d8d8d8;
+	border: none;
+	width: 100%;
+	margin: 0px;
+}
+
+a[href] {
+	color: #1e8ad6;
+}
+
+a[href]:hover {
+	color: #3ba0e6;
+}
+
+img {
+	max-width: 100%;
+}
+
+li {
+	line-height: 1.5em;
+}
+
+aside,
+[class *= "sidebar"],
+[id *= "sidebar"] {
+	max-width: 90%;
+	margin: 0 auto;
+	border: 1px solid lightgrey;
+	padding: 5px 15px;
+}
+
+@media (min-width: 1921px) {
+	body {
+		font-size: 18px;
 	}
+}
 	form {
 		margin: 0;
 	}
@@ -124,7 +218,7 @@ Entries ({{ len .Entries }})<br />
 		{{ range .Entries }}
 			<tr>
 				<td><span class="monospace"><a href="/entries/{{ .ID }}">{{ .ID }}</a></span></td>
-				<td>{{ .Label }}</td>
+				<td>{{ if .Label }}{{ .Label }}{{ else }}-{{ end }}</td>
 				<td>{{ .Prev | FmtDate }}</td>
 				<td>{{ .Next | FmtDate }}</td>
 				<td>
@@ -269,7 +363,6 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 Running jobs ({{ len .JobRuns }})<br />
 <table class="mb-1">
 	<thead>
-		<th>Entry ID</th>
 		<th>Run ID</th>
 		<th>Label</th>
 		<th>Started at</th>
@@ -278,9 +371,8 @@ Running jobs ({{ len .JobRuns }})<br />
 	<tbody>
 		{{ range .JobRuns }}
 			<tr>
-				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}">{{ .Entry.ID }}</a></span></td>
 				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}/runs/{{ .RunID }}">{{ .RunID }}</a></span></td>
-				<td>{{ .Entry.Label }}</td>
+				<td>{{ if .Entry.Label }}{{ .Entry.Label }}{{ else }}-{{ end }}</td>
 				<td>{{ .StartedAt | FmtDate }}</td>
 				<td>
 					<form method="POST" class="d-inline-block">
@@ -291,6 +383,8 @@ Running jobs ({{ len .JobRuns }})<br />
 					</form>
 				</td>
 			</tr>
+		{{ else }}
+			<tr><td colspan="4"><em>No running jobs</em></td></tr>
 		{{ end }}
 	</tbody>
 </table>
@@ -298,7 +392,6 @@ Running jobs ({{ len .JobRuns }})<br />
 Completed jobs ({{ len .CompletedJobRuns }})<br />
 <table class="mb-1">
 	<thead>
-		<th>Entry ID</th>
 		<th>Run ID</th>
 		<th>Label</th>
 		<th>Started at</th>
@@ -309,9 +402,8 @@ Completed jobs ({{ len .CompletedJobRuns }})<br />
 	<tbody>
 		{{ range .CompletedJobRuns }}
 			<tr>
-				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}">{{ .Entry.ID }}</a></span></td>
 				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}/runs/{{ .RunID }}">{{ .RunID }}</a></span></td>
-				<td>{{ .Entry.Label }}</td>
+				<td>{{ if .Entry.Label }}{{ .Entry.Label }}{{ else }}-{{ end }}</td>
 				<td>{{ .StartedAt | FmtDate }}</td>
 				<td>{{ .CompletedAt | FmtDate }}</td>
 				<td>
@@ -329,6 +421,8 @@ Completed jobs ({{ len .CompletedJobRuns }})<br />
 					{{ end }}
 				</td>
 			</tr>
+		{{ else }}
+			<tr><td colspan="6"><em>No completed jobs</em></td></tr>
 		{{ end }}
 	</tbody>
 </table>
@@ -407,14 +501,18 @@ func getRunHandler(c *cron.Cron) http.HandlerFunc {
 <table class="mb-1">
 	<tr><td>Run ID:</td><td><span class="monospace">{{ .JobRun.RunID }}</span></td></tr>
 	<tr><td>Entry ID:</td><td><span class="monospace"><a href="/entries/{{ .Entry.ID }}">{{ .Entry.ID }}</a></span></td></tr>
+	<tr><td>Label:</td><td>{{ if .Entry.ID }}{{ .Entry.Label }}{{ else }}-{{ end }}</td></tr>
+	<tr><td>Spec:</td><td>{{ if .Entry.Spec }}{{ .Entry.Spec }}{{ else }}-{{ end }}</td></tr>
 </table>
 {{ if not .JobRun.CompletedAt }}
-	<form method="POST">
-		<input type="hidden" name="formName" value="cancelRun" />
-		<input type="hidden" name="entryID" value="{{ .JobRun.Entry.ID }}" />
-		<input type="hidden" name="runID" value="{{ .JobRun.RunID }}" />
-		<input type="submit" value="Cancel" />
-	</form>
+	<div class="mb-1">
+		<form method="POST">
+			<input type="hidden" name="formName" value="cancelRun" />
+			<input type="hidden" name="entryID" value="{{ .JobRun.Entry.ID }}" />
+			<input type="hidden" name="runID" value="{{ .JobRun.RunID }}" />
+			<input type="submit" value="Cancel" />
+		</form>
+	</div>
 {{ end }}
 <hr />
 Events ({{ len .JobRun.Events }})<br />

@@ -77,6 +77,7 @@ Running jobs ({{ len .JobRuns }})<br />
 		<th>Entry ID</th>
 		<th>Run ID</th>
 		<th>Label</th>
+		<th>Spec</th>
 		<th>Started at</th>
 		<th>Actions</th>
 	</thead>
@@ -86,6 +87,7 @@ Running jobs ({{ len .JobRuns }})<br />
 				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}">{{ .Entry.ID }}</a></span></td>
 				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}/runs/{{ .RunID }}">{{ .RunID }}</a></span></td>
 				<td>{{ .Entry.Label }}</td>
+				<td>{{ if .Entry.Spec }}{{ .Entry.Spec }}{{ else }}-{{ end }}</td>
 				<td>{{ .StartedAt | FmtDate }}</td>
 				<td>
 					<form method="POST" class="d-inline-block">
@@ -97,7 +99,7 @@ Running jobs ({{ len .JobRuns }})<br />
 				</td>
 			</tr>
 		{{ else }}
-			<tr><td colspan="5"><em>No running jobs</em></td></tr>
+			<tr><td colspan="6"><em>No running jobs</em></td></tr>
 		{{ end }}
 	</tbody>
 </table>
@@ -223,7 +225,10 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 ` + getMenu() + `
 <h1>{{ .Entry.ID }}</h1>
 <div>Label: {{ .Entry.Label }}</div>
+<div>Spec: {{ if .Entry.Spec }}{{ .Entry.Spec }}{{ else }}-{{ end }}</div>
 <div>Active: {{ if .Entry.Active }}<span class="success">T</span>{{ else }}<span class="danger">F</span>{{ end }}</div>
+<div>Prev: {{ .Entry.Prev | FmtDate }}</div>
+<div>Next: {{ .Entry.Next | FmtDate }}</div>
 <hr />
 <div class="mb-1">
 {{ if .Entry.Active }}
@@ -241,7 +246,7 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 {{ end }}
 </div>
 
-<div>
+<div class="mb-1">
 	<label for="label">Job label:</label>
 	<form method="POST">
 		<input type="hidden" name="formName" value="updateLabel" />

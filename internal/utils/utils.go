@@ -5,6 +5,7 @@ import (
 	"iter"
 	"math/rand/v2"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -176,4 +177,31 @@ func NonBlockingSend[T any](c chan T, el T) {
 	case c <- el:
 	default:
 	}
+}
+
+// ShortDur ...
+func ShortDur(v any) string {
+	if d, ok := v.(time.Duration); ok {
+		s := d.Abs().Round(time.Second).String()
+		if strings.HasSuffix(s, "m0s") || strings.HasSuffix(s, "h0m") {
+			s = s[:len(s)-2]
+		}
+		s += Ternary(d < 0, " ago", " from now")
+		return s
+	} else if d, ok := v.(time.Time); ok {
+		return ShortDur(time.Until(d))
+	} else if d, ok := v.(uint64); ok {
+		return ShortDur(time.Duration(d) * time.Second)
+	} else if d, ok := v.(int64); ok {
+		return ShortDur(time.Duration(d) * time.Second)
+	} else if d, ok := v.(int32); ok {
+		return ShortDur(time.Duration(d) * time.Second)
+	} else if d, ok := v.(int64); ok {
+		return ShortDur(time.Duration(d) * time.Second)
+	} else if d, ok := v.(float32); ok {
+		return ShortDur(time.Duration(d) * time.Second)
+	} else if d, ok := v.(float64); ok {
+		return ShortDur(time.Duration(d) * time.Second)
+	}
+	return "n/a"
 }

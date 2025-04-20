@@ -192,7 +192,7 @@ func postIndexHandler(c *cron.Cron) http.HandlerFunc {
 			c.Disable(entryID)
 		} else if formName == "runNow" {
 			entryID := cron.EntryID(r.PostFormValue("entryID"))
-			c.RunNow(entryID)
+			_ = c.RunNow(entryID)
 		}
 		w.Header().Set("Location", "/")
 		w.WriteHeader(http.StatusSeeOther)

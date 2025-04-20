@@ -264,7 +264,7 @@ func (c *Cron) Entry(id EntryID) (out Entry, err error) { return c.getEntry(id) 
 func (c *Cron) Remove(id EntryID) { c.remove(id) }
 
 // RunNow allows the user to run a specific job now
-func (c *Cron) RunNow(id EntryID) { c.runNow(id) }
+func (c *Cron) RunNow(id EntryID) error { return c.runNow(id) }
 
 // IsRunning either or not a specific job is currently running
 func (c *Cron) IsRunning(id EntryID) bool { return c.entryIsRunning(id) }
@@ -371,18 +371,19 @@ func findByIDFn(id EntryID) func(e *Entry) bool {
 	return func(e *Entry) bool { return e.ID == id }
 }
 
-func (c *Cron) runNow(id EntryID) {
+func (c *Cron) runNow(id EntryID) error {
 	if err := c.entries.WithE(func(entries *Entries) error {
 		if entry, idx := utils.FindIdx((*entries).entriesHeap, findByIDFn(id)); entry != nil {
 			(*entry).Next = c.now()
 			reInsertEntry(&entries.entriesHeap, idx) // runNow
 			return nil
 		}
-		return errors.New("not found")
+		return ErrEntryNotFound
 	}); err != nil {
-		return
+		return err
 	}
 	c.entriesUpdated() // runNow
+	return nil
 }
 
 func (c *Cron) addJob(spec string, job IntoJob, opts ...EntryOption) (EntryID, error) {

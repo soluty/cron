@@ -105,8 +105,8 @@ func TestRunNow(t *testing.T) {
 	cron := New(WithClock(clock), WithParser(secondParser))
 	id, _ := cron.AddJob("1 1 * * * *", baseJob{&calls})
 	cron.Start()
-	cron.RunNow(id)
-	cron.RunNow("not-exist")
+	_ = cron.RunNow(id)
+	_ = cron.RunNow("not-exist")
 	advanceAndCycle(cron, time.Second)
 	assert.Equal(t, int32(1), calls.Load())
 }

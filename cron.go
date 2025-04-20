@@ -216,7 +216,7 @@ func (c *Cron) AddJob1(spec string, job Job, opts ...EntryOption) (EntryID, erro
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
 func (c *Cron) Schedule(schedule Schedule, job Job, opts ...EntryOption) (EntryID, error) {
-	return c.schedule(schedule, job, opts...)
+	return c.schedule(nil, schedule, job, opts...)
 }
 
 // AddEntry ...
@@ -226,7 +226,7 @@ func (c *Cron) AddEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
 
 // UpdateSchedule ...
 func (c *Cron) UpdateSchedule(id EntryID, schedule Schedule) error {
-	return c.updateSchedule(id, schedule)
+	return c.updateSchedule(id, nil, schedule)
 }
 
 // UpdateScheduleWithSpec ...
@@ -396,13 +396,14 @@ func (c *Cron) addJob1(spec string, job Job, opts ...EntryOption) (EntryID, erro
 		var zeroID EntryID
 		return zeroID, err
 	}
-	return c.schedule(schedule, job, opts...)
+	return c.schedule(&spec, schedule, job, opts...)
 }
 
-func (c *Cron) schedule(schedule Schedule, job Job, opts ...EntryOption) (EntryID, error) {
+func (c *Cron) schedule(spec *string, schedule Schedule, job Job, opts ...EntryOption) (EntryID, error) {
 	entry := Entry{
 		ID:       c.idFactory.Next(),
 		job:      job,
+		Spec:     spec,
 		Schedule: schedule,
 		Next:     schedule.Next(c.now()),
 		Active:   true,
@@ -455,15 +456,16 @@ func (c *Cron) updateScheduleWithSpec(id EntryID, spec string) error {
 	if err != nil {
 		return err
 	}
-	return c.updateSchedule(id, schedule)
+	return c.updateSchedule(id, &spec, schedule)
 }
 
-func (c *Cron) updateSchedule(id EntryID, schedule Schedule) error {
+func (c *Cron) updateSchedule(id EntryID, spec *string, schedule Schedule) error {
 	if err := c.entries.WithE(func(entries *Entries) error {
 		entry, idx := utils.FindIdx((*entries).entriesHeap, findByIDFn(id))
 		if entry == nil {
 			return ErrEntryNotFound
 		}
+		(*entry).Spec = spec
 		(*entry).Schedule = schedule
 		(*entry).Next = schedule.Next(c.now())
 		reInsertEntry(&entries.entriesHeap, idx) // updateSchedule

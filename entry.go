@@ -10,7 +10,8 @@ type EntryID string
 
 // Entry consists of a schedule and the func to execute on that schedule.
 type Entry struct {
-	ID EntryID
+	ID   EntryID
+	Spec *string
 	// The schedule on which this job should be run.
 	Schedule Schedule
 	// The next time the job will run. This is the zero time if Cron has not been started or this entry's schedule is unsatisfiable

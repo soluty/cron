@@ -254,6 +254,15 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 		<input type="submit" value="Update label" id="label" />
 	</form>
 </div>
+
+<div class="mb-1">
+	<label for="spec">Job spec:</label>
+	<form method="POST">
+		<input type="hidden" name="formName" value="updateSpec" />
+		<input type="text" name="spec" value="{{ .Entry.Spec }}" placeholder="Spec" />
+		<input type="submit" value="Update spec" id="spec" />
+	</form>
+</div>
 <hr />
 Running jobs ({{ len .JobRuns }})<br />
 <table class="mb-1">
@@ -347,6 +356,9 @@ func postEntryHandler(c *cron.Cron) http.HandlerFunc {
 		if formName == "updateLabel" {
 			label := r.PostFormValue("label")
 			c.UpdateLabel(entryID, label)
+		} else if formName == "updateSpec" {
+			spec := r.PostFormValue("spec")
+			_ = c.UpdateScheduleWithSpec(entryID, spec)
 		} else if formName == "enableEntry" {
 			entryID := cron.EntryID(r.PostFormValue("entryID"))
 			c.Enable(entryID)

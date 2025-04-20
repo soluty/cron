@@ -141,11 +141,12 @@ aside,
 </style>
 `
 
-func getMenu() string {
+func getMenu(c *cron.Cron) string {
 	return `
 <a href="/">home</a>
 <hr />
 Current time: ` + time.Now().Format(time.DateTime) + `<br />
+Last cleanup: ` + utils.Ternary(c.GetCleanupTS().IsZero(), "-", c.GetCleanupTS().Format(time.DateTime)) + `<br />
 <hr />`
 }
 
@@ -169,7 +170,7 @@ func getIndexHandler(c *cron.Cron) http.HandlerFunc {
 	` + css + `
 </head>
 <body>
-` + getMenu() + `
+` + getMenu(c) + `
 Running jobs ({{ len .JobRuns }})<br />
 <table>
 	<thead>
@@ -324,7 +325,7 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 	` + css + `
 </head>
 <body>
-` + getMenu() + `
+` + getMenu(c) + `
 <table class="mb-1">
 	<tr><td>Entry ID:</td><td><span class="monospace">{{ .Entry.ID }}</span></td></tr>
 	<tr><td>Label:</td><td>{{ .Entry.Label }}</td></tr>
@@ -499,7 +500,7 @@ func getRunHandler(c *cron.Cron) http.HandlerFunc {
 	` + css + `
 </head>
 <body>
-` + getMenu() + `
+` + getMenu(c) + `
 <table class="mb-1">
 	<tr><td>Run ID:</td><td><span class="monospace">{{ .JobRun.RunID }}</span></td></tr>
 	<tr><td>Entry ID:</td><td><span class="monospace"><a href="/entries/{{ .Entry.ID }}">{{ .Entry.ID }}</a></span></td></tr>

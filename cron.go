@@ -45,6 +45,7 @@ type Cron struct {
 	jobRunCreatedCh      chan *JobRun                                 //
 	jobRunCompletedCh    chan *JobRun                                 //
 	keepCompletedRunsDur mtx.Mtx[time.Duration]                       //
+	lastCleanupTS        mtx.Mtx[time.Time]                           //
 }
 
 type jobRunsInner struct {
@@ -302,6 +303,9 @@ func (c *Cron) SetLocation(newLoc *time.Location) { c.setLocation(newLoc) }
 // If no job is scheduled to be executed, the Zero time is returned
 func (c *Cron) GetNextTime() time.Time { return c.getNextTime() }
 
+// GetCleanupTS ...
+func (c *Cron) GetCleanupTS() time.Time { return c.lastCleanupTS.Get() }
+
 //-----------------------------------------------------------------------------
 
 func startCleanupThread(c *Cron) {
@@ -325,6 +329,7 @@ func startCleanupThread(c *Cron) {
 					}
 				})
 			}
+			c.lastCleanupTS.Set(c.clock.Now())
 		}
 	}()
 }

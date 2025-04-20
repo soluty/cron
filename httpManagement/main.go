@@ -520,11 +520,19 @@ func getRunHandler(c *cron.Cron) http.HandlerFunc {
 Events ({{ len .JobRun.Events }})<br />
 <table>
 	<thead>
-		<tr><th>Type</th><th>Created at</th></tr>
+		<tr>
+			<th>Type</th>
+			<th>Created at</th>
+		</tr>
 	</thead>
 	<tbody>
 		{{ range .JobRun.Events }}
-			<tr><td>{{ .Typ }}</td><td>{{ .CreatedAt | FmtDate }}</td></tr>
+			<tr>
+				<td>{{ .Typ }}</td>
+				<td>{{ .CreatedAt | FmtDate }}</td>
+			</tr>
+		{{ else }}
+			<tr><td colspan="2"><em>No events</em></td></tr>
 		{{ end }}
 	</tbody>
 </table>

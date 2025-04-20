@@ -174,6 +174,7 @@ func main() {
 
 	c.Start()
 
+	// This library comes with a complete web interface administration tool (optional)
 	mux := httpManagement.GetMux(c)
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatal(err)

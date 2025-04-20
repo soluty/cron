@@ -668,9 +668,7 @@ func (c *Cron) cancelRun(entryID EntryID, runID RunID) {
 func (c *Cron) runningJobs() (out []JobRunPublic) {
 	for jobRuns := range c.runningJobsMap.IterValues() {
 		jobRuns.RWith(func(v jobRunsInner) {
-			for _, j := range v.running {
-				out = append(out, j.Export())
-			}
+			out = append(out, exportJobRuns(v.running)...)
 		})
 	}
 	sortJobRunsPublic(out)
@@ -680,9 +678,7 @@ func (c *Cron) runningJobs() (out []JobRunPublic) {
 func (c *Cron) runningJobsFor(entryID EntryID) (out []JobRunPublic) {
 	if jobRuns, ok := c.runningJobsMap.Load(entryID); ok {
 		jobRuns.RWith(func(v jobRunsInner) {
-			for _, j := range v.running {
-				out = append(out, j.Export())
-			}
+			out = exportJobRuns(v.running)
 		})
 	}
 	sortJobRunsPublic(out)
@@ -692,12 +688,17 @@ func (c *Cron) runningJobsFor(entryID EntryID) (out []JobRunPublic) {
 func (c *Cron) completedJobRunsFor(entryID EntryID) (out []JobRunPublic) {
 	if jobRuns, ok := c.runningJobsMap.Load(entryID); ok {
 		jobRuns.RWith(func(v jobRunsInner) {
-			for _, j := range v.completed {
-				out = append(out, j.Export())
-			}
+			out = exportJobRuns(v.completed)
 		})
 	}
 	sortJobRunsPublic(out)
+	return
+}
+
+func exportJobRuns(runs []*JobRun) (out []JobRunPublic) {
+	for _, j := range runs {
+		out = append(out, j.Export())
+	}
 	return
 }
 

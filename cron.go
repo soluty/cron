@@ -415,6 +415,10 @@ func (c *Cron) addEntry(entry Entry, opts ...EntryOption) (EntryID, error) {
 	for _, opt := range opts {
 		opt(c, &entry)
 	}
+	var zeroID EntryID
+	if entry.ID == zeroID {
+		return zeroID, errors.New("id cannot be empty")
+	}
 	if c.entryExists(entry.ID) {
 		var zeroID EntryID
 		return zeroID, ErrIDAlreadyUsed

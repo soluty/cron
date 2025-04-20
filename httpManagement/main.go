@@ -339,8 +339,8 @@ func getEntryHandler(c *cron.Cron) http.HandlerFunc {
 	<tr><td>Label:</td><td>{{ .Entry.Label }}</td></tr>
 	<tr><td>Spec:</td><td>{{ if .Entry.Spec }}{{ .Entry.Spec }}{{ else }}-{{ end }}</td></tr>
 	<tr><td>Active:</td><td>{{ if .Entry.Active }}<span class="success">T</span>{{ else }}<span class="danger">F</span>{{ end }}</td></tr>
-	<tr><td>Prev:</td><td>{{ .Entry.Prev | FmtDate }}{{ if not .Entry.Prev.IsZero }} ({{ .Entry.Prev | ShortDur }}){{ end }}</td></tr>
-	<tr><td>Next:</td><td>{{ .Entry.Next | FmtDate }}{{ if not .Entry.Next.IsZero }} ({{ .Entry.Next | ShortDur }}){{ end }}</td></tr>
+	<tr><td>Prev:</td><td>{{ .Entry.Prev | FmtDate }}{{ if not .Entry.Prev.IsZero }} <small>({{ .Entry.Prev | ShortDur }})</small>{{ end }}</td></tr>
+	<tr><td>Next:</td><td>{{ .Entry.Next | FmtDate }}{{ if not .Entry.Next.IsZero }} <small>({{ .Entry.Next | ShortDur }})</small>{{ end }}</td></tr>
 </table>
 <hr />
 <div class="mb-1">

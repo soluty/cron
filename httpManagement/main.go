@@ -185,7 +185,7 @@ Running jobs ({{ len .JobRuns }})<br />
 				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}/runs/{{ .RunID }}">{{ .RunID }}</a></span></td>
 				<td>{{ .Entry.Label }}</td>
 				<td>{{ if .Entry.Spec }}{{ .Entry.Spec }}{{ else }}-{{ end }}</td>
-				<td>{{ .StartedAt | FmtDate }}</td>
+				<td>{{ .StartedAt | FmtDate }} <small>({{ .StartedAt | ShortDur }})</small></td>
 				<td>
 					<form method="POST" class="d-inline-block">
 						<input type="hidden" name="formName" value="cancelRun" />
@@ -223,7 +223,7 @@ Entries ({{ len .Entries }})<br />
 				<td><span class="monospace"><a href="/entries/{{ .ID }}">{{ .ID }}</a></span></td>
 				<td>{{ if .Label }}{{ .Label }}{{ else }}-{{ end }}</td>
 				<td>{{ .Prev | FmtDate }}</td>
-				<td>{{ .Next | FmtDate }}</td>
+				<td>{{ .Next | FmtDate }}{{ if not .Next.IsZero }} <small>({{ .Next | ShortDur }})</small>{{ end }}</td>
 				<td>
 					{{ if .Active }}
 						<span class="success">T</span>

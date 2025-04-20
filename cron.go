@@ -54,47 +54,6 @@ type jobRunsInner struct {
 	completed []*jobRunStruct
 }
 
-type JobEventType int
-
-const (
-	Start JobEventType = iota + 1
-	Completed
-	CompletedNoErr
-	CompletedErr
-	CompletedPanic
-)
-
-func (e JobEventType) String() string {
-	switch e {
-	case Start:
-		return "Start"
-	case Completed:
-		return "Completed"
-	case CompletedNoErr:
-		return "CompletedNoErr"
-	case CompletedErr:
-		return "CompletedErr"
-	case CompletedPanic:
-		return "CompletedPanic"
-	default:
-		return "Unknown"
-	}
-}
-
-type JobEvent struct {
-	Typ       JobEventType
-	JobRun    JobRun
-	CreatedAt time.Time
-}
-
-func NewJobEvent(typ JobEventType, jobRun *jobRunStruct) JobEvent {
-	return JobEvent{
-		Typ:       typ,
-		JobRun:    jobRun.Export(),
-		CreatedAt: jobRun.clock.Now(),
-	}
-}
-
 type Entries struct {
 	entriesHeap EntryHeap
 	entriesMap  map[EntryID]*Entry
@@ -750,68 +709,6 @@ func (c *Cron) updateJobsCounter(key EntryID, jobRun *jobRunStruct, delta int32)
 				}
 			}
 		})
-	}
-}
-
-// RunID ...
-type RunID string
-
-type jobRunStruct struct {
-	runID     RunID
-	entry     Entry
-	clock     clockwork.Clock
-	inner     mtx.RWMtx[jobRunInner]
-	createdAt time.Time
-	ctx       context.Context
-	cancel    context.CancelFunc
-}
-
-type jobRunInner struct {
-	startedAt   *time.Time
-	completedAt *time.Time
-	events      []JobEvent
-	error       error
-	panic       bool
-}
-
-func (j *jobRunInner) addEvent(evt JobEvent) {
-	j.events = append(j.events, evt)
-}
-
-func (j *jobRunStruct) Export() JobRun {
-	innerCopy := j.inner.Get()
-	return JobRun{
-		RunID:       j.runID,
-		Entry:       j.entry,
-		CreatedAt:   j.createdAt,
-		Events:      innerCopy.events,
-		StartedAt:   innerCopy.startedAt,
-		CompletedAt: innerCopy.completedAt,
-		Error:       innerCopy.error,
-		Panic:       innerCopy.panic,
-	}
-}
-
-type JobRun struct {
-	RunID       RunID
-	Entry       Entry
-	CreatedAt   time.Time
-	StartedAt   *time.Time
-	CompletedAt *time.Time
-	Events      []JobEvent
-	Error       error
-	Panic       bool
-}
-
-func newJobRun(ctx context.Context, clock clockwork.Clock, entry Entry) *jobRunStruct {
-	ctx, cancel := context.WithCancel(ctx)
-	return &jobRunStruct{
-		runID:     RunID(uuidV4()),
-		entry:     entry,
-		clock:     clock,
-		createdAt: clock.Now(),
-		ctx:       ctx,
-		cancel:    cancel,
 	}
 }
 

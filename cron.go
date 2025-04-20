@@ -640,9 +640,9 @@ func (c *Cron) entryIsRunning(id EntryID) bool {
 
 func (c *Cron) getRun(entryID EntryID, runID RunID) (JobRunPublic, error) {
 	var jobRunPub JobRunPublic
-	if jobRunsIn, ok := c.runningJobsMap.Load(entryID); ok {
-		if err := jobRunsIn.RWithE(func(jobRunsIn1 jobRunsInner) error {
-			if run, ok := jobRunsIn1.mapping[runID]; ok {
+	if jobRunsInnerMtx, ok := c.runningJobsMap.Load(entryID); ok {
+		if err := jobRunsInnerMtx.RWithE(func(jobRunsIn jobRunsInner) error {
+			if run, ok := jobRunsIn.mapping[runID]; ok {
 				jobRunPub = run.Export()
 				return nil
 			}
@@ -656,13 +656,11 @@ func (c *Cron) getRun(entryID EntryID, runID RunID) (JobRunPublic, error) {
 }
 
 func (c *Cron) cancelRun(entryID EntryID, runID RunID) error {
-	if jobRunsSlice, ok := c.runningJobsMap.Load(entryID); ok {
-		if err := jobRunsSlice.WithE(func(jobRuns *jobRunsInner) error {
-			for _, jobRun := range (*jobRuns).running {
-				if jobRun.RunID == runID {
-					(*jobRun).cancel()
-					return nil
-				}
+	if jobRunsInnerMtx, ok := c.runningJobsMap.Load(entryID); ok {
+		if err := jobRunsInnerMtx.WithE(func(jobRunsIn *jobRunsInner) error {
+			if jobRun, ok := jobRunsIn.mapping[runID]; ok {
+				(*jobRun).cancel()
+				return nil
 			}
 			return ErrRunNotFound
 		}); err != nil {

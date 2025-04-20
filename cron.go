@@ -863,63 +863,28 @@ func makeEvent(c *Cron, entry Entry, jobRun *JobRun, typ JobEventType) {
 }
 
 func makeEventErr(c *Cron, entry Entry, jobRun *JobRun, typ JobEventType, err error) {
-	var evt JobEvent
+	now := c.clock.Now()
+	var opt func(*jobRunInner)
 	switch typ {
-	case CompletedPanic:
-		evt = makePanicEvent(jobRun)
-	case Completed:
-		evt = makeCompletedEvent(jobRun)
 	case Start:
-		evt = makeStartEvent(jobRun)
+		opt = func(inner *jobRunInner) { (*inner).StartedAt = utils.Ptr(now) }
+	case Completed:
+		opt = func(inner *jobRunInner) { (*inner).CompletedAt = utils.Ptr(now) }
+	case CompletedPanic:
+		opt = func(inner *jobRunInner) { (*inner).Panic = true }
 	case CompletedErr:
-		evt = makeCompletedErrEvent(jobRun, err)
+		opt = func(inner *jobRunInner) { (*inner).Error = err }
 	case CompletedNoErr:
-		evt = makeCompletedNoErrEvent(jobRun)
+		opt = func(inner *jobRunInner) {}
 	}
+	evt := makeEvent1(jobRun, typ, opt)
 	c.ps.Pub(entry.ID, evt)
 }
 
-func makePanicEvent(jobRun *JobRun) JobEvent {
-	evt := NewJobEvent(CompletedPanic, jobRun)
+func makeEvent1(jobRun *JobRun, typ JobEventType, opts ...func(*jobRunInner)) JobEvent {
+	evt := NewJobEvent(typ, jobRun)
 	jobRun.inner.With(func(inner *jobRunInner) {
-		(*inner).Panic = true
-		inner.addEvent(evt)
-	})
-	return evt
-}
-
-func makeCompletedEvent(jobRun *JobRun) JobEvent {
-	now := jobRun.clock.Now()
-	evt := NewJobEvent(Completed, jobRun)
-	jobRun.inner.With(func(inner *jobRunInner) {
-		(*inner).CompletedAt = utils.Ptr(now)
-		inner.addEvent(evt)
-	})
-	return evt
-}
-
-func makeStartEvent(jobRun *JobRun) JobEvent {
-	now := jobRun.clock.Now()
-	evt := NewJobEvent(Start, jobRun)
-	jobRun.inner.With(func(inner *jobRunInner) {
-		(*inner).StartedAt = utils.Ptr(now)
-		inner.addEvent(evt)
-	})
-	return evt
-}
-
-func makeCompletedErrEvent(jobRun *JobRun, err error) JobEvent {
-	evt := NewJobEvent(CompletedErr, jobRun)
-	jobRun.inner.With(func(inner *jobRunInner) {
-		(*inner).Error = err
-		inner.addEvent(evt)
-	})
-	return evt
-}
-
-func makeCompletedNoErrEvent(jobRun *JobRun) JobEvent {
-	evt := NewJobEvent(CompletedNoErr, jobRun)
-	jobRun.inner.With(func(inner *jobRunInner) {
+		utils.ApplyOptions(inner, opts)
 		inner.addEvent(evt)
 	})
 	return evt

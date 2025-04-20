@@ -2,8 +2,8 @@ package cron
 
 import (
 	"context"
-	"github.com/alaingilbert/cron/internal/mtx"
-	"github.com/alaingilbert/cron/internal/utils"
+	"github.com/soluty/cron/internal/mtx"
+	"github.com/soluty/cron/internal/utils"
 	"github.com/jonboulle/clockwork"
 	"time"
 )

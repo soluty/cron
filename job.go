@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/alaingilbert/cron/internal/utils"
+	"github.com/soluty/cron/internal/utils"
 )
 
 // Job is an interface for submitted cron jobs.

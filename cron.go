@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/alaingilbert/cron/internal/pubsub"
+	"github.com/soluty/cron/internal/pubsub"
 	"log"
 	"os"
 	"runtime/debug"
@@ -15,9 +15,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/alaingilbert/cron/internal/mtx"
-	isync "github.com/alaingilbert/cron/internal/sync"
-	"github.com/alaingilbert/cron/internal/utils"
+	"github.com/soluty/cron/internal/mtx"
+	isync "github.com/soluty/cron/internal/sync"
+	"github.com/soluty/cron/internal/utils"
 	"github.com/jonboulle/clockwork"
 )
 

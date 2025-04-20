@@ -3,7 +3,7 @@ package core
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"github.com/alaingilbert/cron/internal/mtx"
+	"github.com/soluty/cron/internal/mtx"
 	mathRand "math/rand/v2"
 )
 

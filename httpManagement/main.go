@@ -2,8 +2,8 @@ package httpManagement
 
 import (
 	"bytes"
-	"github.com/alaingilbert/cron"
-	"github.com/alaingilbert/cron/internal/utils"
+	"github.com/soluty/cron"
+	"github.com/soluty/cron/internal/utils"
 	"html/template"
 	"net/http"
 	"slices"

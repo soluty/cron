@@ -3,7 +3,7 @@ package utils
 import (
 	cryptoRand "crypto/rand"
 	"encoding/hex"
-	"github.com/alaingilbert/cron/internal/core"
+	"github.com/soluty/cron/internal/core"
 	"io"
 	"iter"
 	"math/rand/v2"

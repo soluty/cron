@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"github.com/alaingilbert/cron/internal/core"
+	"github.com/soluty/cron/internal/core"
 	"github.com/stretchr/testify/assert"
 	mathRand "math/rand/v2"
 	"reflect"

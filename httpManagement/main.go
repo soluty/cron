@@ -388,7 +388,10 @@ Running jobs ({{ len .JobRuns }})<br />
 			<tr>
 				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}/runs/{{ .RunID }}">{{ .RunID }}</a></span></td>
 				<td>{{ if .Entry.Label }}{{ .Entry.Label }}{{ else }}-{{ end }}</td>
-				<td>{{ .StartedAt | FmtDate }}</td>
+				<td>
+					<span class="monospace">{{ .StartedAt | FmtDate }}</span>
+					<small>({{ .StartedAt | ShortDur }})</small>
+				</td>
 				<td>
 					<form method="POST" class="d-inline-block">
 						<input type="hidden" name="formName" value="cancelRun" />
@@ -418,8 +421,8 @@ Completed jobs ({{ len .CompletedJobRuns }})<br />
 			<tr>
 				<td><span class="monospace"><a href="/entries/{{ .Entry.ID }}/runs/{{ .RunID }}">{{ .RunID }}</a></span></td>
 				<td>{{ if .Entry.Label }}{{ .Entry.Label }}{{ else }}-{{ end }}</td>
-				<td>{{ .StartedAt | FmtDate }}</td>
-				<td>{{ .CompletedAt | FmtDate }}</td>
+				<td><span class="monospace">{{ .StartedAt | FmtDate }}</span> <small>({{ .StartedAt | ShortDur }})</small></td>
+				<td><span class="monospace">{{ .CompletedAt | FmtDate }}</span> <small>({{ .CompletedAt | ShortDur }})</small></td>
 				<td>
 					{{ if .Error }}
 						<span class="danger" title="{{ .Error.Error }}">Error</span>
@@ -537,8 +540,8 @@ Events ({{ len .JobRun.Events }})<br />
 			<tr>
 				<td>{{ .Typ }}</td>
 				<td>
-					{{ .CreatedAt | FmtDate }}
-					({{ .CreatedAt | ShortDur }})
+					<span class="monospace">{{ .CreatedAt | FmtDate }}</span>
+					<small>({{ .CreatedAt | ShortDur }})</small>
 				</td>
 			</tr>
 		{{ else }}

@@ -3,12 +3,9 @@ package cron
 import (
 	"container/heap"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/alaingilbert/cron/internal/pubsub"
-	"io"
 	"log"
 	"os"
 	"runtime/debug"
@@ -94,24 +91,10 @@ type EntryIDFactory interface {
 	Next() EntryID
 }
 
-func uuidV4() string {
-	var uuid [16]byte
-	_, _ = io.ReadFull(rand.Reader, uuid[:])
-	uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
-	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant is 10
-	var buf [32]byte
-	hex.Encode(buf[:], uuid[:4])
-	hex.Encode(buf[8:12], uuid[4:6])
-	hex.Encode(buf[12:16], uuid[6:8])
-	hex.Encode(buf[16:20], uuid[8:10])
-	hex.Encode(buf[20:], uuid[10:])
-	return string(buf[:])
-}
-
 // UUIDEntryIDFactory generate and format UUID V4
 func UUIDEntryIDFactory() EntryIDFactory {
 	return FuncEntryIDFactory(func() EntryID {
-		return EntryID(uuidV4())
+		return EntryID(utils.UuidV4())
 	})
 }
 

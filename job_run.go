@@ -3,6 +3,7 @@ package cron
 import (
 	"context"
 	"github.com/alaingilbert/cron/internal/mtx"
+	"github.com/alaingilbert/cron/internal/utils"
 	"github.com/jonboulle/clockwork"
 	"time"
 )
@@ -60,7 +61,7 @@ func (j *jobRunStruct) Export() JobRun {
 func newJobRun(ctx context.Context, clock clockwork.Clock, entry Entry) *jobRunStruct {
 	ctx, cancel := context.WithCancel(ctx)
 	return &jobRunStruct{
-		runID:     RunID(uuidV4()),
+		runID:     RunID(utils.UuidV4()),
 		entry:     entry,
 		clock:     clock,
 		createdAt: clock.Now(),
